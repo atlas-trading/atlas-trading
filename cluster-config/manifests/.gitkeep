@@ -1,0 +1,7 @@
+# Placeholder for manifests directory
+# 실제 매니페스트 파일들이 여기에 추가될 예정:
+# - deployment.yaml
+# - service.yaml
+# - configmap.yaml
+# - sealed-secret.yaml (암호화된 API 키)
+# - network-policy.yaml

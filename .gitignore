@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.*
+!.env.template
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+nohup.out
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# K8s secrets (평문은 절대 커밋 금지)
+*-secret.yaml
+!*-sealed-secret.yaml
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Core Platform specific
+core-platform/.venv/
+core-platform/atlas.db
+core-platform/core_platform.egg-info/
