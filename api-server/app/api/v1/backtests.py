@@ -4,7 +4,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from typing import Optional
 
 # Add core-platform to sys.path using absolute path
 CORE_PLATFORM_PATH = Path("/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform")
@@ -101,8 +100,8 @@ def _equity_to_response(obj: BacktestEquity) -> EquityPointResponse:
 def list_backtests(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    strategy_name: Optional[str] = None,
-    symbol: Optional[str] = None,
+    strategy_name: str | None = None,
+    symbol: str | None = None,
     db: Session = Depends(get_db),
 ) -> list[BacktestRunSummaryResponse]:
     """

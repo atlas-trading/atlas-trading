@@ -1,7 +1,6 @@
 """Backtest Response Schemas (Frozen Dataclasses)"""
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -10,14 +9,14 @@ class TradeResponse:
     id: int
     backtest_run_id: int
     entry_time: datetime
-    exit_time: Optional[datetime]
+    exit_time: datetime | None
     side: str
     entry_price: float
-    exit_price: Optional[float]
+    exit_price: float | None
     quantity: float
-    pnl: Optional[float]
-    pnl_pct: Optional[float]
-    commission_paid: Optional[float]
+    pnl: float | None
+    pnl_pct: float | None
+    commission_paid: float | None
 
 
 @dataclass(frozen=True)
@@ -40,12 +39,12 @@ class BacktestRunSummaryResponse:
     end_date: datetime
     initial_capital: float
     commission: float
-    final_capital: Optional[float]
-    total_return: Optional[float]
-    total_trades: Optional[int]
-    win_rate: Optional[float]
-    max_drawdown: Optional[float]
-    sharpe_ratio: Optional[float]
+    final_capital: float | None
+    total_return: float | None
+    total_trades: int | None
+    win_rate: float | None
+    max_drawdown: float | None
+    sharpe_ratio: float | None
     created_at: datetime
 
 
@@ -60,15 +59,15 @@ class BacktestRunDetailResponse:
     end_date: datetime
     initial_capital: float
     commission: float
-    final_capital: Optional[float]
-    total_return: Optional[float]
-    total_trades: Optional[int]
-    winning_trades: Optional[int]
-    losing_trades: Optional[int]
-    win_rate: Optional[float]
-    max_drawdown: Optional[float]
-    sharpe_ratio: Optional[float]
-    parameters: Optional[str]
+    final_capital: float | None
+    total_return: float | None
+    total_trades: int | None
+    winning_trades: int | None
+    losing_trades: int | None
+    win_rate: float | None
+    max_drawdown: float | None
+    sharpe_ratio: float | None
+    parameters: str | None
     created_at: datetime
 
 
@@ -83,15 +82,15 @@ class BacktestRunFullResponse:
     end_date: datetime
     initial_capital: float
     commission: float
-    final_capital: Optional[float]
-    total_return: Optional[float]
-    total_trades: Optional[int]
-    winning_trades: Optional[int]
-    losing_trades: Optional[int]
-    win_rate: Optional[float]
-    max_drawdown: Optional[float]
-    sharpe_ratio: Optional[float]
-    parameters: Optional[str]
+    final_capital: float | None
+    total_return: float | None
+    total_trades: int | None
+    winning_trades: int | None
+    losing_trades: int | None
+    win_rate: float | None
+    max_drawdown: float | None
+    sharpe_ratio: float | None
+    parameters: str | None
     created_at: datetime
     trades: list[TradeResponse]
     equity_curve: list[EquityPointResponse]
