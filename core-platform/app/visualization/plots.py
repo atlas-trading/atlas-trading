@@ -1,5 +1,6 @@
 """백테스팅 결과 시각화"""
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from typing import Dict, Any, Optional
@@ -233,12 +234,15 @@ class BacktestVisualizer:
                 if period in monthly_returns.index:
                     row.append(monthly_returns[period])
                 else:
-                    row.append(None)
+                    row.append(np.nan)
             data.append(row)
+
+        # numpy array로 변환
+        data = np.array(data, dtype=float)
 
         fig, ax = plt.subplots(figsize=(14, max(4, len(years) * 0.8)))
 
-        # 히트맵 그리기
+        # 히트맵 그리기 (NaN은 마스킹됨)
         im = ax.imshow(data, cmap="RdYlGn", aspect="auto", vmin=-10, vmax=10)
 
         # 축 설정
@@ -250,7 +254,7 @@ class BacktestVisualizer:
         # 값 표시
         for i, year_data in enumerate(data):
             for j, val in enumerate(year_data):
-                if val is not None:
+                if not np.isnan(val):
                     text = ax.text(
                         j,
                         i,
