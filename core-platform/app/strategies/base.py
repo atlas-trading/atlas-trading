@@ -468,3 +468,50 @@ class IndicatorMixin:
         df['macd_signal'] = df['macd'].ewm(span=signal, adjust=False).mean()
         df['macd_hist'] = df['macd'] - df['macd_signal']
         return df
+
+    @staticmethod
+    def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+        """ATR (Average True Range) 지표 추가"""
+        high_low = df['high'] - df['low']
+        high_close = (df['high'] - df['close'].shift()).abs()
+        low_close = (df['low'] - df['close'].shift()).abs()
+
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        df[f'atr_{period}'] = true_range.rolling(window=period).mean()
+        return df
+
+    @staticmethod
+    def add_adx(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+        """ADX (Average Directional Index) 지표 추가"""
+        # +DM, -DM 계산
+        high_diff = df['high'].diff()
+        low_diff = -df['low'].diff()
+
+        plus_dm = high_diff.where((high_diff > low_diff) & (high_diff > 0), 0)
+        minus_dm = low_diff.where((low_diff > high_diff) & (low_diff > 0), 0)
+
+        # ATR 계산 (이미 있으면 재사용)
+        if f'atr_{period}' not in df.columns:
+            df = IndicatorMixin.add_atr(df, period)
+
+        atr = df[f'atr_{period}']
+
+        # +DI, -DI 계산
+        plus_di = 100 * (plus_dm.rolling(window=period).mean() / atr)
+        minus_di = 100 * (minus_dm.rolling(window=period).mean() / atr)
+
+        # DX, ADX 계산
+        dx = 100 * ((plus_di - minus_di).abs() / (plus_di + minus_di))
+        df[f'adx_{period}'] = dx.rolling(window=period).mean()
+        df[f'plus_di_{period}'] = plus_di
+        df[f'minus_di_{period}'] = minus_di
+
+        return df
+
+    @staticmethod
+    def add_donchian_channel(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
+        """Donchian Channel 지표 추가"""
+        df[f'donchian_high_{period}'] = df['high'].rolling(window=period).max()
+        df[f'donchian_low_{period}'] = df['low'].rolling(window=period).min()
+        df[f'donchian_mid_{period}'] = (df[f'donchian_high_{period}'] + df[f'donchian_low_{period}']) / 2
+        return df
