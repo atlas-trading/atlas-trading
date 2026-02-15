@@ -152,6 +152,7 @@ button {
 table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 600px;
 }
 
 thead {
@@ -203,6 +204,8 @@ tr:hover {
 .app-layout {
   display: flex;
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .sidebar {
@@ -322,6 +325,9 @@ tr:hover {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: calc(100% - 260px);
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .header {
@@ -379,12 +385,18 @@ tr:hover {
   flex: 1;
   padding: 24px;
   background: var(--bg-primary);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
 }
 
 /* Page Styles */
 .page-container {
   max-width: 1400px;
   margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {
@@ -464,6 +476,8 @@ tr:hover {
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 24px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .card-header {
@@ -562,5 +576,14 @@ tr:hover {
 
   .main-content {
     margin-left: 0;
+    width: 100%;
+  }
+
+  .content-area {
+    padding: 16px;
+  }
+
+  table {
+    min-width: 500px;
   }
 }

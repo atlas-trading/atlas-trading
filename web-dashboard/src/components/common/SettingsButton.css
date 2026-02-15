@@ -190,7 +190,7 @@
 
 .toggle-button span {
   flex: 1;
-  padding: 10px 20px;
+  padding: 10px 24px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -199,6 +199,9 @@
   transition: all 0.3s ease;
   position: relative;
   border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .toggle-button span.active {
