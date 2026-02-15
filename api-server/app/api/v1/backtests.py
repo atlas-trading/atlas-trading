@@ -1,14 +1,7 @@
 """Backtest API Endpoints"""
-import sys
-from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-
-# Add core-platform to sys.path using absolute path
-CORE_PLATFORM_PATH = Path("/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform")
-if str(CORE_PLATFORM_PATH) not in sys.path:
-    sys.path.insert(0, str(CORE_PLATFORM_PATH))
 
 from app.models.backtest import BacktestRun, BacktestTrade, BacktestEquity
 from app.core.database import get_db
@@ -19,6 +12,10 @@ from app.schemas.backtest import (
     TradeResponse,
     EquityPointResponse,
     StatsResponse,
+    AdvancedMetricsResponse,
+    TradeAnalysisResponse,
+    MonteCarloResponse,
+    CostStressResponse,
 )
 
 router = APIRouter()
@@ -259,3 +256,389 @@ def get_stats_summary(db: Session = Depends(get_db)) -> StatsResponse:
             for stat in strategy_stats
         ],
     )
+
+
+@router.get("/{backtest_id}/metrics/advanced", response_model=AdvancedMetricsResponse)
+def get_advanced_metrics(
+    backtest_id: int,
+    db: Session = Depends(get_db),
+) -> AdvancedMetricsResponse:
+    """고급 성과 지표 조회"""
+    from app.analytics.summary import calculate_advanced_metrics
+
+    # 백테스트 데이터 조회
+    backtest = (
+        db.query(BacktestRun)
+        .options(
+            joinedload(BacktestRun.trades),
+            joinedload(BacktestRun.equity_curve),
+        )
+        .filter(BacktestRun.id == backtest_id)
+        .first()
+    )
+
+    if not backtest:
+        raise HTTPException(status_code=404, detail="Backtest not found")
+
+    # 데이터 변환
+    equity_curve = [
+        {
+            'timestamp': e.timestamp,
+            'equity': e.equity,
+            'cash': e.cash,
+            'position_value': e.position_value,
+        }
+        for e in backtest.equity_curve
+    ]
+
+    trades = [
+        {
+            'entry_time': t.entry_time,
+            'exit_time': t.exit_time,
+            'side': t.side,
+            'entry_price': t.entry_price,
+            'exit_price': t.exit_price,
+            'quantity': t.quantity,
+            'pnl': t.pnl or 0,
+            'pnl_pct': t.pnl_pct or 0,
+            'commission_paid': t.commission_paid or 0,
+        }
+        for t in backtest.trades
+    ]
+
+    # 고급 지표 계산
+    metrics = calculate_advanced_metrics(
+        equity_curve=equity_curve,
+        trades=trades,
+        total_return=backtest.total_return or 0,
+        max_drawdown=backtest.max_drawdown or 0,
+        initial_capital=backtest.initial_capital,
+        start_date=str(backtest.start_date),
+        end_date=str(backtest.end_date),
+    )
+
+    return AdvancedMetricsResponse(
+        sortino_ratio=metrics['sortino_ratio'],
+        calmar_ratio=metrics['calmar_ratio'],
+        profit_factor=metrics['profit_factor'],
+        expectancy=metrics['expectancy'],
+        win_loss_ratio=metrics['win_loss_ratio'],
+        recovery_factor=metrics['recovery_factor'],
+        max_consecutive_wins=metrics['max_consecutive_wins'],
+        max_consecutive_losses=metrics['max_consecutive_losses'],
+        net_profit=metrics['net_profit'],
+        net_profit_pct=metrics['net_profit_pct'],
+        total_commission_paid=metrics['total_commission_paid'],
+        avg_trade_duration_hours=metrics['avg_trade_duration_bars'],
+    )
+
+
+@router.get("/{backtest_id}/analysis/trades", response_model=TradeAnalysisResponse)
+def get_trade_analysis(
+    backtest_id: int,
+    db: Session = Depends(get_db),
+) -> TradeAnalysisResponse:
+    """거래 분석 조회"""
+    from app.analytics.trade_analysis import analyze_trades
+    import pandas as pd
+
+    # 백테스트 데이터 조회
+    backtest = (
+        db.query(BacktestRun)
+        .options(
+            joinedload(BacktestRun.trades),
+            joinedload(BacktestRun.equity_curve),
+        )
+        .filter(BacktestRun.id == backtest_id)
+        .first()
+    )
+
+    if not backtest:
+        raise HTTPException(status_code=404, detail="Backtest not found")
+
+    # 데이터 변환
+    trades = [
+        {
+            'entry_time': t.entry_time,
+            'exit_time': t.exit_time,
+            'side': t.side,
+            'entry_price': t.entry_price,
+            'exit_price': t.exit_price,
+            'quantity': t.quantity,
+            'pnl': t.pnl or 0,
+            'pnl_pct': t.pnl_pct or 0,
+            'commission_paid': t.commission_paid or 0,
+        }
+        for t in backtest.trades
+    ]
+
+    # 간단한 OHLCV 데이터프레임 생성 (equity curve 기반)
+    df = pd.DataFrame([
+        {
+            'timestamp': e.timestamp,
+            'close': e.equity,  # 간단히 equity를 close로 사용
+            'high': e.equity,
+            'low': e.equity,
+            'open': e.equity,
+        }
+        for e in backtest.equity_curve
+    ])
+
+    # 거래 분석
+    analysis = analyze_trades(
+        trades=trades,
+        df=df,
+        initial_capital=backtest.initial_capital,
+    )
+
+    holding = analysis.get('holding_periods', {})
+    distribution = analysis.get('distribution', {})
+    quality = analysis.get('quality', {})
+    mae_mfe = analysis.get('mae_mfe', {})
+
+    return TradeAnalysisResponse(
+        # Holding periods
+        avg_holding_hours=holding.get('avg_holding_hours', 0),
+        median_holding_hours=holding.get('median_holding_hours', 0),
+        min_holding_hours=holding.get('min_holding_hours', 0),
+        max_holding_hours=holding.get('max_holding_hours', 0),
+        # Distribution
+        avg_pnl=distribution.get('avg_pnl', 0),
+        median_pnl=distribution.get('median_pnl', 0),
+        largest_win=distribution.get('largest_win', 0),
+        largest_loss=distribution.get('largest_loss', 0),
+        avg_win=distribution.get('avg_win', 0),
+        avg_loss=distribution.get('avg_loss', 0),
+        # Quality
+        small_wins_count=quality.get('small_wins_count', 0),
+        medium_wins_count=quality.get('medium_wins_count', 0),
+        large_wins_count=quality.get('large_wins_count', 0),
+        small_losses_count=quality.get('small_losses_count', 0),
+        medium_losses_count=quality.get('medium_losses_count', 0),
+        large_losses_count=quality.get('large_losses_count', 0),
+        # MAE/MFE
+        avg_mae=mae_mfe.get('avg_mae'),
+        avg_mfe=mae_mfe.get('avg_mfe'),
+        avg_efficiency=mae_mfe.get('avg_efficiency'),
+    )
+
+
+@router.post("/{backtest_id}/monte-carlo")
+def run_monte_carlo(
+    backtest_id: int,
+    n_simulations: int = 1000,
+    db: Session = Depends(get_db),
+):
+    """
+    Monte Carlo 시뮬레이션 실행
+
+    거래 순서를 랜덤하게 섞어서 전략의 신뢰도를 검증합니다.
+
+    Args:
+        backtest_id: 백테스트 ID
+        n_simulations: 시뮬레이션 횟수 (기본값: 1000)
+    """
+    from app.analytics.monte_carlo import monte_carlo_simulation, analyze_monte_carlo_risk
+
+    # 백테스트 데이터 조회
+    backtest = (
+        db.query(BacktestRun)
+        .options(joinedload(BacktestRun.trades))
+        .filter(BacktestRun.id == backtest_id)
+        .first()
+    )
+
+    if not backtest:
+        raise HTTPException(status_code=404, detail="Backtest not found")
+
+    if not backtest.trades:
+        raise HTTPException(status_code=400, detail="No trades found for this backtest")
+
+    # 거래 데이터 변환
+    trades = [
+        {
+            'pnl': t.pnl or 0,
+            'pnl_pct': t.pnl_pct or 0,
+        }
+        for t in backtest.trades
+    ]
+
+    # Monte Carlo 시뮬레이션 실행
+    result = monte_carlo_simulation(
+        trades=trades,
+        initial_capital=backtest.initial_capital,
+        n_simulations=n_simulations,
+        n_sample_curves=min(20, n_simulations // 50),
+    )
+
+    # 리스크 분석
+    risk_analysis = analyze_monte_carlo_risk(result)
+
+    # Convert dataclass to dict and merge with risk analysis
+    from dataclasses import asdict
+    result_dict = asdict(result)
+    result_dict.update({
+        'probability_of_loss': risk_analysis['probability_of_loss'],
+        'value_at_risk_5': risk_analysis['value_at_risk_5'],
+        'conditional_var_5': risk_analysis['conditional_var_5'],
+        'confidence_interval_95': risk_analysis['confidence_interval_95'],
+        'volatility_ratio': risk_analysis['volatility_ratio'],
+        'risk_grade': risk_analysis['risk_grade'],
+    })
+    return result_dict
+
+
+@router.post("/{backtest_id}/cost-stress")
+def run_cost_stress_test(
+    backtest_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Cost Stress Test - Critical for Strategy Validation
+
+    Tests strategy robustness under realistic cost assumptions:
+    1. Commission 2x: Double the commission rate
+    2. Slippage +1 tick: Add 1 tick slippage per trade
+    3. Execution delay: Delay entry/exit by 1 bar
+
+    If strategy fails these tests, it should be discarded.
+
+    Args:
+        backtest_id: 백테스트 ID
+    """
+    from app.analytics.cost_stress import run_cost_stress_test as run_stress
+
+    # 백테스트 데이터 조회
+    backtest = (
+        db.query(BacktestRun)
+        .options(joinedload(BacktestRun.trades))
+        .filter(BacktestRun.id == backtest_id)
+        .first()
+    )
+
+    if not backtest:
+        raise HTTPException(status_code=404, detail="Backtest not found")
+
+    if not backtest.trades:
+        raise HTTPException(status_code=400, detail="No trades found for this backtest")
+
+    # Run stress test
+    result = run_stress(
+        trades=backtest.trades,
+        initial_capital=backtest.initial_capital,
+        commission_rate=backtest.commission,
+        start_date=backtest.start_date,
+        end_date=backtest.end_date,
+        base_total_return=backtest.total_return or 0.0,
+        base_sharpe=backtest.sharpe_ratio or 0.0,
+        base_max_drawdown=backtest.max_drawdown or 0.0,
+    )
+
+    # Convert dataclass to dict for JSON serialization
+    from dataclasses import asdict
+    return asdict(result)
+
+
+@router.post("/run")
+def run_backtest(
+    strategy_name: str = Query(..., description="Strategy name (e.g., 'Golden Cross')"),
+    symbol: str = Query("BTCUSDT", description="Trading symbol"),
+    initial_capital: float = Query(10000.0, description="Initial capital"),
+    commission_rate: float = Query(0.001, description="Commission rate"),
+    db: Session = Depends(get_db),
+):
+    """
+    Run a new backtest
+
+    TODO: Move to background worker (Celery/RQ) for production
+    Currently runs synchronously - may timeout for long backtests
+    """
+    import sys
+    sys.path.insert(0, '/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform')
+
+    from app.backtesting.engine import BacktestEngine
+    from app.strategies.golden_cross import GoldenCrossStrategy
+    from datetime import datetime
+    from app.models.backtest import BacktestRun, BacktestTrade as DBTrade, BacktestEquity as DBEquityPoint
+
+    try:
+        # Create strategy instance
+        if strategy_name.lower() == 'golden cross':
+            strategy = GoldenCrossStrategy()
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown strategy: {strategy_name}")
+
+        # TODO: Get historical data from database or external API
+        # For now, using dummy implementation
+        raise HTTPException(
+            status_code=501,
+            detail="Backtest execution not fully implemented. TODO: Add data fetching and worker queue."
+        )
+
+        # This code will be activated after data fetching is implemented:
+        """
+        engine = BacktestEngine(
+            strategy_func=strategy.on_bar,
+            strategy_name=strategy_name,
+            symbol=symbol,
+            initial_capital=initial_capital,
+            commission_rate=commission_rate,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 12, 31)
+        )
+
+        result = engine.run()
+
+        # Save to database
+        backtest = BacktestRun(
+            strategy_name=result.strategy_name,
+            symbol=result.symbol,
+            timeframe='1d',
+            start_date=result.start_date,
+            end_date=result.end_date,
+            initial_capital=result.initial_capital,
+            final_capital=result.final_capital,
+            total_return=result.total_return,
+            max_drawdown=result.max_drawdown,
+            sharpe_ratio=result.sharpe_ratio,
+            total_trades=result.total_trades,
+            winning_trades=result.winning_trades,
+            losing_trades=result.losing_trades,
+            win_rate=result.win_rate,
+            commission=engine.commission_rate
+        )
+        db.add(backtest)
+        db.flush()
+
+        for trade in result.trades:
+            db_trade = DBTrade(
+                backtest_run_id=backtest.id,
+                entry_date=trade.entry_date,
+                exit_date=trade.exit_date,
+                side=trade.side,
+                entry_price=trade.entry_price,
+                exit_price=trade.exit_price,
+                quantity=trade.quantity,
+                pnl=trade.pnl,
+                pnl_percent=trade.pnl_percent,
+                commission=trade.commission
+            )
+            db.add(db_trade)
+
+        for point in result.equity_curve:
+            db_point = DBEquityPoint(
+                backtest_run_id=backtest.id,
+                timestamp=point.timestamp,
+                equity=point.equity,
+                drawdown=point.drawdown
+            )
+            db.add(db_point)
+
+        db.commit()
+
+        return {"id": backtest.id, "status": "completed", "message": "Backtest completed successfully"}
+        """
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

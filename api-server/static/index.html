@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas Trading - 백테스트 결과</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0B0E11;
+            color: #EAECEF;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            color: #F0B90B;
+            margin-bottom: 30px;
+            font-size: 32px;
+            text-shadow: 0 0 20px rgba(240, 185, 11, 0.3);
+        }
+        h2 {
+            color: #EAECEF;
+            font-size: 20px;
+            margin-bottom: 15px;
+            border-left: 3px solid #F0B90B;
+            padding-left: 12px;
+        }
+        .card {
+            background: #1E2329;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #2B3139;
+        }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-item {
+            padding: 15px;
+            background: #181A20;
+            border-radius: 6px;
+            border: 1px solid #2B3139;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #848E9C;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #EAECEF;
+        }
+        .positive { color: #0ECB81; }
+        .negative { color: #F6465D; }
+        #equityChart { max-height: 400px; }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #848E9C;
+        }
+        #backtest-info p {
+            margin-bottom: 10px;
+            color: #B7BDC6;
+            line-height: 1.6;
+        }
+        #backtest-info strong {
+            color: #EAECEF;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Atlas Trading - 백테스트 결과</h1>
+
+        <div class="card">
+            <h2>백테스트 정보</h2>
+            <div id="backtest-info" class="loading">데이터 로딩 중...</div>
+        </div>
+
+        <div class="card">
+            <h2>성과 지표</h2>
+            <div id="stats" class="loading">데이터 로딩 중...</div>
+        </div>
+
+        <div class="card">
+            <h2>자산 곡선</h2>
+            <canvas id="equityChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const BACKTEST_ID = 4; // 가장 최근 백테스트 ID
+        const API_URL = 'http://localhost:8000/api/v1';
+
+        async function loadBacktestData() {
+            try {
+                // 백테스트 상세 정보
+                const detailRes = await fetch(`${API_URL}/backtests/${BACKTEST_ID}`);
+                const detail = await detailRes.json();
+
+                // 자산 곡선 데이터
+                const equityRes = await fetch(`${API_URL}/backtests/${BACKTEST_ID}/equity`);
+                const equityData = await equityRes.json();
+
+                displayBacktestInfo(detail);
+                displayStats(detail);
+                displayEquityChart(equityData, detail.initial_capital);
+            } catch (error) {
+                console.error('데이터 로딩 실패:', error);
+                document.getElementById('backtest-info').innerHTML = '⚠️ 데이터 로딩 실패';
+            }
+        }
+
+        function displayBacktestInfo(detail) {
+            const info = `
+                <p><strong>전략:</strong> ${detail.strategy_name}</p>
+                <p><strong>심볼:</strong> ${detail.symbol}</p>
+                <p><strong>타임프레임:</strong> ${detail.timeframe}</p>
+                <p><strong>기간:</strong> ${detail.start_date.split('T')[0]} ~ ${detail.end_date.split('T')[0]}</p>
+                <p><strong>초기 자본금:</strong> $${detail.initial_capital.toLocaleString()}</p>
+            `;
+            document.getElementById('backtest-info').innerHTML = info;
+        }
+
+        function displayStats(detail) {
+            const returnClass = detail.total_return >= 0 ? 'positive' : 'negative';
+            const stats = `
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-label">최종 자본금</div>
+                        <div class="stat-value">$${detail.final_capital.toFixed(2)}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">총 수익률</div>
+                        <div class="stat-value ${returnClass}">${detail.total_return.toFixed(2)}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">총 거래</div>
+                        <div class="stat-value">${detail.total_trades}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">승률</div>
+                        <div class="stat-value">${detail.win_rate.toFixed(1)}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">최대 낙폭 (MDD)</div>
+                        <div class="stat-value negative">${detail.max_drawdown.toFixed(2)}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">샤프 비율</div>
+                        <div class="stat-value">${detail.sharpe_ratio.toFixed(2)}</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('stats').innerHTML = stats;
+        }
+
+        function displayEquityChart(equityData, initialCapital) {
+            const ctx = document.getElementById('equityChart').getContext('2d');
+
+            const labels = equityData.map(d => d.timestamp.split('T')[0]);
+            const data = equityData.map(d => d.equity);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '자산 총액',
+                        data: data,
+                        borderColor: '#F0B90B',
+                        backgroundColor: 'rgba(240, 185, 11, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2
+                    }, {
+                        label: '초기 자본',
+                        data: Array(data.length).fill(initialCapital),
+                        borderColor: '#848E9C',
+                        borderDash: [5, 5],
+                        fill: false,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#EAECEF',
+                                font: { size: 12 },
+                                padding: 15
+                            }
+                        },
+                        title: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1E2329',
+                            titleColor: '#F0B90B',
+                            bodyColor: '#EAECEF',
+                            borderColor: '#2B3139',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxTicksLimit: 10,
+                                color: '#848E9C'
+                            },
+                            grid: {
+                                color: '#2B3139',
+                                drawBorder: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                color: '#848E9C',
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            },
+                            grid: {
+                                color: '#2B3139',
+                                drawBorder: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 페이지 로드 시 데이터 로딩
+        loadBacktestData();
+    </script>
+</body>
+</html>

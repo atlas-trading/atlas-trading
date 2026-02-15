@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
-from app.database import get_db
-from app.models import StrategyConfig
+from app.models.base import get_db
+from app.models.strategy import StrategyConfig
 
 
 router = APIRouter()
