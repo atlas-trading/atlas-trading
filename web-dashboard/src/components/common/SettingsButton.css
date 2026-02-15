@@ -174,7 +174,6 @@
 .toggle-button {
   position: relative;
   display: flex;
-  gap: 8px;
   background: var(--bg-tertiary);
   border: 2px solid var(--border-primary);
   border-radius: 24px;
@@ -212,8 +211,8 @@
 
 .toggle-slider {
   position: absolute;
-  top: 0;
-  height: 100%;
+  top: 4px;
+  height: calc(100% - 8px);
   background: linear-gradient(135deg, var(--color-binance-light), var(--color-binance));
   border-radius: 18px;
   transition: left 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55), width 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
