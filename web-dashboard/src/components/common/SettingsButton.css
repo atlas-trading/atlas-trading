@@ -177,7 +177,7 @@
   background: var(--bg-tertiary);
   border: 2px solid var(--border-primary);
   border-radius: 24px;
-  padding: 4px;
+  padding: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
   min-width: 180px;
@@ -190,7 +190,7 @@
 
 .toggle-button span {
   flex: 1;
-  padding: 10px 20px;
+  padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -212,21 +212,21 @@
 .toggle-slider {
   position: absolute;
   top: 0;
-  width: calc(50% - 8px);
+  width: 50%;
   height: 100%;
   background: linear-gradient(135deg, var(--color-binance-light), var(--color-binance));
-  border-radius: 20px;
+  border-radius: 18px;
   transition: left 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   box-shadow: 0 2px 8px rgba(240, 185, 11, 0.4);
   z-index: 1;
 }
 
 .toggle-button.active .toggle-slider {
-  left: 4px;
+  left: 0;
 }
 
 .toggle-button:not(.active) .toggle-slider {
-  left: calc(50% + 4px);
+  left: 50%;
 }
 
 /* Warning Box */
