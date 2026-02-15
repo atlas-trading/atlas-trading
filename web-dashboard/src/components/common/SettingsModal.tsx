@@ -31,8 +31,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       if (activeSpan) {
         const spanRect = activeSpan.getBoundingClientRect();
         const buttonRect = button.getBoundingClientRect();
-        const left = spanRect.left - buttonRect.left;
-        const width = spanRect.width;
+        const left = spanRect.left - buttonRect.left - 1; // 1px offset for better alignment
+        const width = spanRect.width + 2; // Add 2px to compensate for rounding
 
         sliderRef.current.style.left = `${left}px`;
         sliderRef.current.style.width = `${width}px`;
