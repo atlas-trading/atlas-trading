@@ -211,22 +211,23 @@
 
 .toggle-slider {
   position: absolute;
-  top: 4px;
+  top: 0;
   width: calc(50% - 8px);
-  height: calc(100% - 8px);
+  height: 100%;
   background: linear-gradient(135deg, var(--color-binance-light), var(--color-binance));
   border-radius: 20px;
   transition: left 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   box-shadow: 0 2px 8px rgba(240, 185, 11, 0.4);
   z-index: 1;
+  margin: 4px;
 }
 
 .toggle-button.active .toggle-slider {
-  left: 4px;
+  left: 0;
 }
 
 .toggle-button:not(.active) .toggle-slider {
-  left: calc(50% + 4px);
+  left: 50%;
 }
 
 /* Warning Box */
