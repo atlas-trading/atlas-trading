@@ -249,6 +249,8 @@ tr:hover {
 .sidebar-nav {
   flex: 1;
   padding: 16px 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-section {
@@ -278,6 +280,14 @@ tr:hover {
   color: var(--text-secondary);
   transition: all 0.2s;
   border-left: 3px solid transparent;
+  text-decoration: none;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 .sidebar-menu-item:hover {
@@ -295,6 +305,15 @@ tr:hover {
   width: 20px;
   height: 20px;
   margin-right: 12px;
+  flex-shrink: 0;
+}
+
+/* Settings at bottom */
+.sidebar-settings {
+  margin-top: auto;
+  padding-bottom: 16px;
+  border-top: 1px solid var(--border-primary);
+  padding-top: 16px;
 }
 
 .main-content {
@@ -498,6 +517,40 @@ tr:hover {
 @media (min-width: 1024px) {
   .lg\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Network Badge */
+.network-badge {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+.network-badge.testnet {
+  background: rgba(14, 203, 129, 0.1);
+  border: 1px solid rgba(14, 203, 129, 0.3);
+  color: #0ECB81;
+}
+
+.network-badge.mainnet {
+  background: rgba(246, 70, 93, 0.1);
+  border: 1px solid rgba(246, 70, 93, 0.3);
+  color: #F6465D;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(246, 70, 93, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(246, 70, 93, 0);
   }
 }
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   HomeIcon,
@@ -9,6 +10,8 @@ import {
   CubeIcon,
   ClipboardDocumentListIcon
 } from '@heroicons/react/24/outline';
+import { useNetwork } from '../../contexts/NetworkContext';
+import SettingsModal from '../common/SettingsModal';
 
 interface MenuItem {
   label: string;
@@ -64,6 +67,8 @@ const menuSections: MenuSection[] = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const { network } = useNetwork();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -76,6 +81,9 @@ export default function Sidebar() {
         <div className="sidebar-logo-container">
           <img src="/logo.png" alt="Atlas Trading" className="sidebar-logo-img" />
           <h1 className="sidebar-logo">Atlas Trading</h1>
+        </div>
+        <div className={`network-badge ${network}`}>
+          {network === 'testnet' ? 'Testnet' : 'Mainnet'}
         </div>
       </div>
 
@@ -104,6 +112,26 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Settings at bottom */}
+      <div className="sidebar-settings">
+        <ul className="sidebar-menu">
+          <li>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="sidebar-menu-item"
+            >
+              <CogIcon className="sidebar-menu-icon" />
+              <span>Settings</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <SettingsModal onClose={() => setIsSettingsOpen(false)} />
+      )}
     </aside>
   );
 }

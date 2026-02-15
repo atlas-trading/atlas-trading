@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { NetworkProvider } from './contexts/NetworkContext';
 import MainLayout from './components/layout/MainLayout';
 import BacktestList from './pages/BacktestList';
 import BacktestDetail from './pages/BacktestDetail';
@@ -13,8 +14,9 @@ function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
-        <MainLayout>
-          <Routes>
+        <NetworkProvider>
+          <MainLayout>
+            <Routes>
             <Route path="/" element={<Dashboard />} />
 
             {/* Trading */}
@@ -40,6 +42,7 @@ function App() {
             <Route path="/analysis/risk" element={<ComingSoon page="Risk Monitoring" />} />
           </Routes>
         </MainLayout>
+        </NetworkProvider>
       </BrowserRouter>
     </ThemeProvider>
   );
