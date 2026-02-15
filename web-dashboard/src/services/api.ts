@@ -39,7 +39,10 @@ export const backtestAPI = {
     strategy_name?: string;
     symbol?: string;
   }): Promise<BacktestRunSummary[]> => {
-    const response = await apiClient.get<BacktestRunSummary[]>('/backtests/', { params });
+    const response = await apiClient.get<BacktestRunSummary[]>('/backtests/', {
+      params,
+      maxRedirects: 5  // Follow redirects
+    });
     return response.data;
   },
 

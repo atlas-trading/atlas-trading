@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = [
         "http://localhost:3000",  # React dev server
-        "http://localhost:5173",  # Vite dev server
+        "http://localhost:5173",  # Vite dev server (default)
+        "http://localhost:5174",  # Vite dev server (alt port)
+        "http://localhost:5175",  # Vite dev server (alt port)
         "http://localhost:8080",
     ]
 
