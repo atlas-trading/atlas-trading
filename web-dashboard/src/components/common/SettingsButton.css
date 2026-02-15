@@ -227,7 +227,7 @@
 }
 
 .toggle-button:not(.active) .toggle-slider {
-  transform: translateX(calc(100% + 4px));
+  transform: translateX(calc(100% + 8px));
 }
 
 /* Warning Box */
