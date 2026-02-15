@@ -189,8 +189,7 @@
 }
 
 .toggle-button span {
-  flex: 1;
-  padding: 10px 16px;
+  padding: 10px 20px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-tertiary);
@@ -199,9 +198,10 @@
   transition: all 0.3s ease;
   position: relative;
   border-radius: 18px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
 }
 
 .toggle-button span.active {
@@ -212,21 +212,12 @@
 .toggle-slider {
   position: absolute;
   top: 0;
-  width: 50%;
   height: 100%;
   background: linear-gradient(135deg, var(--color-binance-light), var(--color-binance));
   border-radius: 18px;
-  transition: left 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  transition: left 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55), width 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   box-shadow: 0 2px 8px rgba(240, 185, 11, 0.4);
   z-index: 1;
-}
-
-.toggle-button.active .toggle-slider {
-  left: 0;
-}
-
-.toggle-button:not(.active) .toggle-slider {
-  left: 50%;
 }
 
 /* Warning Box */

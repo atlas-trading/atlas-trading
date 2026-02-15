@@ -1,5 +1,6 @@
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNetwork, type Network } from '../../contexts/NetworkContext';
+import { useEffect, useRef } from 'react';
 import './SettingsButton.css';
 
 interface SettingsModalProps {
@@ -9,6 +10,38 @@ interface SettingsModalProps {
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const { theme, toggleTheme } = useTheme();
   const { network, setNetwork } = useNetwork();
+  const themeSliderRef = useRef<HTMLDivElement>(null);
+  const networkSliderRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateSlider = (sliderRef: React.RefObject<HTMLDivElement>, activeValue: string) => {
+      if (!sliderRef.current) return;
+      const button = sliderRef.current.parentElement;
+      if (!button) return;
+
+      const spans = button.querySelectorAll('span');
+      let activeSpan: Element | null = null;
+
+      spans.forEach(span => {
+        if (span.classList.contains('active')) {
+          activeSpan = span;
+        }
+      });
+
+      if (activeSpan) {
+        const spanRect = activeSpan.getBoundingClientRect();
+        const buttonRect = button.getBoundingClientRect();
+        const left = spanRect.left - buttonRect.left;
+        const width = spanRect.width;
+
+        sliderRef.current.style.left = `${left}px`;
+        sliderRef.current.style.width = `${width}px`;
+      }
+    };
+
+    updateSlider(themeSliderRef, theme);
+    updateSlider(networkSliderRef, network);
+  }, [theme, network]);
 
   return (
     <div className="settings-modal-overlay" onClick={onClose}>
@@ -39,7 +72,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               >
                 <span className={theme === 'dark' ? 'active' : ''}>Dark</span>
                 <span className={theme === 'light' ? 'active' : ''}>Light</span>
-                <div className="toggle-slider" />
+                <div className="toggle-slider" ref={themeSliderRef} />
               </button>
             </div>
           </div>
@@ -59,7 +92,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               >
                 <span className={network === 'testnet' ? 'active' : ''}>Testnet</span>
                 <span className={network === 'mainnet' ? 'active' : ''}>Mainnet</span>
-                <div className="toggle-slider" />
+                <div className="toggle-slider" ref={networkSliderRef} />
               </button>
             </div>
           </div>
