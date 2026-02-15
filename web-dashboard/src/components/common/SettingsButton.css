@@ -173,8 +173,7 @@
 /* Toggle Button */
 .toggle-button {
   position: relative;
-  display: flex;
-  justify-content: center;
+  display: inline-flex;
   gap: 8px;
   background: var(--bg-tertiary);
   border: 2px solid var(--border-primary);
@@ -182,7 +181,6 @@
   padding: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 200px;
   overflow: hidden;
 }
 
