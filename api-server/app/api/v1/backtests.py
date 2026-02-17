@@ -541,104 +541,209 @@ def run_cost_stress_test(
 
 @router.post("/run")
 def run_backtest(
-    strategy_name: str = Query(..., description="Strategy name (e.g., 'Golden Cross')"),
+    strategy_name: str = Query(..., description="Strategy name (e.g., 'RSIMeanReversionStrategy')"),
     symbol: str = Query("BTCUSDT", description="Trading symbol"),
     initial_capital: float = Query(10000.0, description="Initial capital"),
     commission_rate: float = Query(0.001, description="Commission rate"),
+    use_real_data: bool = Query(False, description="Use real data from Binance"),
+    days_back: int = Query(365, description="Days of historical data (real data only)"),
     db: Session = Depends(get_db),
 ):
     """
-    Run a new backtest
+    Run a new backtest with sample or real data
 
-    TODO: Move to background worker (Celery/RQ) for production
-    Currently runs synchronously - may timeout for long backtests
+    Set use_real_data=true to fetch real data from Binance
     """
     import sys
-    sys.path.insert(0, '/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform')
+    import os
 
-    from app.backtesting.engine import BacktestEngine
-    from app.strategies.golden_cross import GoldenCrossStrategy
-    from datetime import datetime
+    # Add core-platform to path BEFORE any imports
+    core_platform_path = '/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform'
+    if core_platform_path not in sys.path:
+        sys.path.insert(0, core_platform_path)
+
+    # Now import from core-platform
+    from datetime import datetime, timedelta
     from app.models.backtest import BacktestRun, BacktestTrade as DBTrade, BacktestEquity as DBEquityPoint
 
-    try:
-        # Create strategy instance
-        if strategy_name.lower() == 'golden cross':
-            strategy = GoldenCrossStrategy()
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown strategy: {strategy_name}")
+    # Import from api-server utils
+    import sys
+    api_server_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if api_server_path not in sys.path:
+        sys.path.insert(0, api_server_path)
 
-        # TODO: Get historical data from database or external API
-        # For now, using dummy implementation
-        raise HTTPException(
-            status_code=501,
-            detail="Backtest execution not fully implemented. TODO: Add data fetching and worker queue."
+    from app.utils.sample_data import generate_sample_ohlcv
+
+    # Import BacktestEngine from core-platform
+    import importlib.util
+    engine_path = os.path.join(core_platform_path, 'app', 'backtesting', 'engine.py')
+    spec = importlib.util.spec_from_file_location("core_backtesting", engine_path)
+    core_backtesting = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(core_backtesting)
+    BacktestEngine = core_backtesting.BacktestEngine
+
+    # Import all strategies using symlink
+    from app.strategies.rsi_mean_reversion import RSIMeanReversionStrategy
+    from app.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
+    from app.strategies.pairs_trading import PairsTradingStrategy
+    from app.strategies.trend_following import TrendFollowingStrategy
+    from app.strategies.breakout import BreakoutStrategy
+    from app.strategies.golden_cross import GoldenCrossStrategy
+    from app.strategies.ema_crossover_atr import EMACrossoverATRStrategy
+    from app.strategies.mean_reversion_scalping import MeanReversionScalpingStrategy
+
+    try:
+        # Strategy registry
+        strategy_map = {
+            'RSIMeanReversionStrategy': RSIMeanReversionStrategy,
+            'FundingRateArbitrageStrategy': FundingRateArbitrageStrategy,
+            'PairsTradingStrategy': PairsTradingStrategy,
+            'TrendFollowingStrategy': TrendFollowingStrategy,
+            'BreakoutStrategy': BreakoutStrategy,
+            'GoldenCrossStrategy': GoldenCrossStrategy,
+            'EMACrossoverATRStrategy': EMACrossoverATRStrategy,
+            'MeanReversionScalpingStrategy': MeanReversionScalpingStrategy,
+            # Aliases
+            'rsi': RSIMeanReversionStrategy,
+            'funding': FundingRateArbitrageStrategy,
+            'pairs': PairsTradingStrategy,
+            'trend': TrendFollowingStrategy,
+            'breakout': BreakoutStrategy,
+            'golden cross': GoldenCrossStrategy,
+            'ema': EMACrossoverATRStrategy,
+            'ema_atr': EMACrossoverATRStrategy,
+            'scalping': MeanReversionScalpingStrategy,
+            'scalp': MeanReversionScalpingStrategy,
+        }
+
+        # Create strategy instance
+        strategy_key = strategy_name.lower().replace(' ', '')
+        strategy_class = None
+
+        # Try exact match first
+        if strategy_name in strategy_map:
+            strategy_class = strategy_map[strategy_name]
+        # Try lowercase match
+        elif strategy_key in strategy_map:
+            strategy_class = strategy_map[strategy_key]
+        # Try case-insensitive match
+        else:
+            for key, cls in strategy_map.items():
+                if key.lower() == strategy_key:
+                    strategy_class = cls
+                    break
+
+        if strategy_class is None:
+            available = list(set([k for k in strategy_map.keys() if not k.islower()]))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown strategy: {strategy_name}. Available: {available}"
+            )
+
+        strategy = strategy_class(symbol=symbol)
+
+        # Get market data
+        if use_real_data:
+            # Fetch real data from Binance
+            from app.data_providers.binance import BinanceDataProvider
+            provider = BinanceDataProvider(testnet=False)
+
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days_back)
+
+            try:
+                df = provider.fetch_ohlcv(
+                    symbol=symbol,
+                    timeframe='1d',
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to fetch real data: {str(e)}"
+                )
+        else:
+            # Generate sample data
+            start_date = datetime(2024, 1, 1)
+            end_date = datetime(2024, 12, 31)
+
+            df = generate_sample_ohlcv(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+        # Run backtest
+        engine = BacktestEngine(
+            initial_capital=initial_capital,
+            commission=commission_rate
         )
 
-        # This code will be activated after data fetching is implemented:
-        """
-        engine = BacktestEngine(
-            strategy_func=strategy.on_bar,
+        result = engine.run(
+            df=df,
+            strategy=strategy,
             strategy_name=strategy_name,
             symbol=symbol,
-            initial_capital=initial_capital,
-            commission_rate=commission_rate,
-            start_date=datetime(2024, 1, 1),
-            end_date=datetime(2024, 12, 31)
+            timeframe='1d'
         )
-
-        result = engine.run()
 
         # Save to database
         backtest = BacktestRun(
-            strategy_name=result.strategy_name,
-            symbol=result.symbol,
+            strategy_name=strategy_name,
+            symbol=symbol,
             timeframe='1d',
-            start_date=result.start_date,
-            end_date=result.end_date,
-            initial_capital=result.initial_capital,
-            final_capital=result.final_capital,
-            total_return=result.total_return,
-            max_drawdown=result.max_drawdown,
-            sharpe_ratio=result.sharpe_ratio,
-            total_trades=result.total_trades,
-            winning_trades=result.winning_trades,
-            losing_trades=result.losing_trades,
-            win_rate=result.win_rate,
-            commission=engine.commission_rate
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=initial_capital,
+            final_capital=result.get('final_capital', initial_capital),
+            total_return=result.get('total_return', 0.0),
+            max_drawdown=result.get('max_drawdown', 0.0),
+            sharpe_ratio=result.get('sharpe_ratio', 0.0),
+            total_trades=result.get('total_trades', 0),
+            winning_trades=result.get('winning_trades', 0),
+            losing_trades=result.get('losing_trades', 0),
+            win_rate=result.get('win_rate', 0.0),
+            commission=commission_rate
         )
         db.add(backtest)
         db.flush()
 
-        for trade in result.trades:
+        # Save trades
+        for trade in result.get('trades', []):
             db_trade = DBTrade(
                 backtest_run_id=backtest.id,
-                entry_date=trade.entry_date,
-                exit_date=trade.exit_date,
-                side=trade.side,
-                entry_price=trade.entry_price,
-                exit_price=trade.exit_price,
-                quantity=trade.quantity,
-                pnl=trade.pnl,
-                pnl_percent=trade.pnl_percent,
-                commission=trade.commission
+                entry_time=trade.get('entry_time'),
+                exit_time=trade.get('exit_time'),
+                side=trade.get('side'),
+                entry_price=trade.get('entry_price'),
+                exit_price=trade.get('exit_price'),
+                quantity=trade.get('quantity'),
+                pnl=trade.get('pnl'),
+                pnl_pct=trade.get('pnl_pct'),
+                commission_paid=trade.get('commission', 0.0)
             )
             db.add(db_trade)
 
-        for point in result.equity_curve:
+        # Save equity curve
+        for point in result.get('equity_curve', []):
             db_point = DBEquityPoint(
                 backtest_run_id=backtest.id,
-                timestamp=point.timestamp,
-                equity=point.equity,
-                drawdown=point.drawdown
+                timestamp=point.get('timestamp'),
+                equity=point.get('equity'),
+                cash=point.get('cash', point.get('equity')),  # Default to equity if cash not provided
+                position_value=point.get('position_value', 0.0)
             )
             db.add(db_point)
 
         db.commit()
 
         return {"id": backtest.id, "status": "completed", "message": "Backtest completed successfully"}
-        """
 
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

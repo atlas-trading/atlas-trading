@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.api.v1 import backtests, strategies
+from app.api.v1 import backtests, strategies, parameter_optimization
 
 # Create FastAPI app
 app = FastAPI(
@@ -35,6 +35,12 @@ app.include_router(
     strategies.router,
     prefix=f"{settings.api_prefix}/strategies",
     tags=["strategies"],
+)
+
+app.include_router(
+    parameter_optimization.router,
+    prefix=f"{settings.api_prefix}",
+    tags=["optimization"],
 )
 
 

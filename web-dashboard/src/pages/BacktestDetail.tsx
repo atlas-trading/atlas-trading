@@ -429,15 +429,32 @@ export default function BacktestDetail() {
         </Card>
       )}
 
-      {/* Cost Stress Test */}
-      <div style={{ marginBottom: '20px' }}>
-        <CostStressPanel backtestId={data.id} />
-      </div>
+      {/* Cost Stress Test & Monte Carlo - Only show if trades exist */}
+      {data.total_trades > 0 ? (
+        <>
+          {/* Cost Stress Test */}
+          <div style={{ marginBottom: '20px' }}>
+            <CostStressPanel backtestId={data.id} />
+          </div>
 
-      {/* Monte Carlo Simulation */}
-      <div style={{ marginBottom: '20px' }}>
-        <MonteCarloPanel backtestId={data.id} initialCapital={data.initial_capital} />
-      </div>
+          {/* Monte Carlo Simulation */}
+          <div style={{ marginBottom: '20px' }}>
+            <MonteCarloPanel backtestId={data.id} initialCapital={data.initial_capital} />
+          </div>
+        </>
+      ) : (
+        <Card style={{ marginBottom: '20px' }}>
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <h3 style={{ color: 'var(--text-secondary)', marginBottom: '10px' }}>
+              Advanced Analysis Unavailable
+            </h3>
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '14px' }}>
+              Monte Carlo Simulation and Cost Stress Testing require at least 1 completed trade.
+              This backtest has 0 trades.
+            </p>
+          </div>
+        </Card>
+      )}
 
       {/* Trades Table */}
       <Card>
