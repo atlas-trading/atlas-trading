@@ -5,6 +5,7 @@ import { backtestAPI } from '../services/api';
 import type { BacktestRunSummary } from '../types/backtest';
 import Card from '../components/common/Card';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { formatSymbol } from '../utils/format';
 
 export default function BacktestList() {
   const [backtests, setBacktests] = useState<BacktestRunSummary[]>([]);
@@ -20,7 +21,7 @@ export default function BacktestList() {
     try {
       setLoading(true);
       setError(null);
-      const data = await backtestAPI.listBacktests({ limit: 20 });
+      const data = await backtestAPI.listBacktests({ limit: 100 });
       setBacktests(data);
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || err.message || 'Failed to load backtest list';
@@ -117,7 +118,7 @@ export default function BacktestList() {
                   >
                     <td>{bt.id}</td>
                     <td style={{ fontWeight: 600 }}>{bt.strategy_name}</td>
-                    <td>{bt.symbol}</td>
+                    <td>{formatSymbol(bt.symbol)}</td>
                     <td>{bt.timeframe}</td>
                     <td>{formatPercent(bt.total_return)}</td>
                     <td>
