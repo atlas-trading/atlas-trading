@@ -66,25 +66,25 @@ async def startup_event():
     try:
         # 전략 import 및 등록 (strategies는 core-platform으로 심볼릭 링크됨)
         from app.api.v1.strategies import register_strategy
-        from app.strategies.rsi_mean_reversion import RSIMeanReversionStrategy
-        from app.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-        from app.strategies.pairs_trading import PairsTradingStrategy
-        from app.strategies.trend_following import TrendFollowingStrategy
-        from app.strategies.breakout import BreakoutStrategy
+        from app.strategies.statistical_arbitrage import StatisticalArbitrageStrategy
+        from app.strategies.ict_smart_money import ICTSmartMoneyStrategy
+        from app.strategies.market_microstructure import MarketMicrostructureStrategy
+        from app.strategies.adaptive_grid_trading import AdaptiveGridTradingStrategy
+        from app.strategies.triangular_arbitrage import TriangularArbitrageStrategy
 
-        # 전략 등록
+        # 프로 전략 등록
         strategies = [
-            RSIMeanReversionStrategy,
-            FundingRateArbitrageStrategy,
-            PairsTradingStrategy,
-            TrendFollowingStrategy,
-            BreakoutStrategy
+            StatisticalArbitrageStrategy,
+            ICTSmartMoneyStrategy,
+            MarketMicrostructureStrategy,
+            AdaptiveGridTradingStrategy,
+            TriangularArbitrageStrategy,
         ]
 
         for strategy_class in strategies:
             register_strategy(strategy_class)
 
-        print(f"[Startup] ✓ Registered {len(strategies)} strategies:")
+        print(f"[Startup] ✓ Registered {len(strategies)} professional strategies:")
         for strategy_class in strategies:
             print(f"  - {strategy_class.__name__}")
 
