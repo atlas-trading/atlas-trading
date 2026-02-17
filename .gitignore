@@ -81,3 +81,8 @@ htmlcov/
 core-platform/.venv/
 core-platform/atlas.db
 core-platform/core_platform.egg-info/
+
+# Vite
+web-dashboard/.vite/
+web-dashboard/node_modules/
+web-dashboard/dist/

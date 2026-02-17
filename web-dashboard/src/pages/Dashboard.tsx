@@ -1,9 +1,15 @@
+import QuickLinks from '../components/common/QuickLinks';
+
 export default function Dashboard() {
   return (
     <div className="page-container">
       <div className="page-header">
         <h1 className="page-title">Dashboard Overview</h1>
         <p className="page-description">Welcome to Atlas Trading</p>
+      </div>
+
+      <div className="mb-8">
+        <QuickLinks />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

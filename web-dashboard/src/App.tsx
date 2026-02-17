@@ -7,6 +7,7 @@ import BacktestDetail from './pages/BacktestDetail';
 import Dashboard from './pages/Dashboard';
 import StrategyList from './pages/StrategyList';
 import PaperTrading from './pages/PaperTrading';
+import Environment from './pages/Environment';
 import ComingSoon from './pages/ComingSoon';
 
 function App() {
@@ -29,6 +30,9 @@ function App() {
 
               {/* Strategies */}
               <Route path="/strategies" element={<StrategyList />} />
+
+              {/* Environment */}
+              <Route path="/environment" element={<Environment />} />
 
               {/* Analysis */}
               <Route path="/trading/orders" element={<ComingSoon page="Order History" />} />
