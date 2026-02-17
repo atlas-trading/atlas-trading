@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-dashboard-green
+  namespace: atlas-trading
+  labels:
+    app: web-dashboard
+    version: green
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-dashboard
+      version: green
+  template:
+    metadata:
+      labels:
+        app: web-dashboard
+        version: green
+    spec:
+      containers:
+      - name: web-dashboard
+        image: atlas-trading/web-dashboard:green
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
