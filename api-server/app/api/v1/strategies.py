@@ -82,6 +82,33 @@ def register_strategy(strategy_class):
     return strategy_class
 
 
+# 전략 클래스 자동 등록
+def _register_all_strategies():
+    """모든 전략을 레지스트리에 자동 등록"""
+    try:
+        from app.strategies import (
+            StatisticalArbitrageStrategy,
+            ICTSmartMoneyStrategy,
+            MarketMicrostructureStrategy,
+            AdaptiveGridTradingStrategy,
+            TriangularArbitrageStrategy,
+        )
+
+        register_strategy(StatisticalArbitrageStrategy)
+        register_strategy(ICTSmartMoneyStrategy)
+        register_strategy(MarketMicrostructureStrategy)
+        register_strategy(AdaptiveGridTradingStrategy)
+        register_strategy(TriangularArbitrageStrategy)
+
+        print(f"✓ Registered {len(_STRATEGY_REGISTRY)} strategies")
+    except Exception as e:
+        print(f"⚠️ Failed to register strategies: {e}")
+
+
+# 서버 시작 시 전략 등록
+_register_all_strategies()
+
+
 def get_strategy_class(strategy_name: str):
     """전략 클래스 조회"""
     if strategy_name not in _STRATEGY_REGISTRY:
@@ -319,3 +346,31 @@ def validate_strategy_parameters(
         return {"valid": False, "errors": errors}
     else:
         return {"valid": True, "message": "Parameters are valid"}
+
+
+@router.get("/symbols", response_model=List[str])
+def list_supported_symbols():
+    """
+    지원되는 거래 심볼 목록 반환
+
+    Returns:
+        심볼 리스트
+    """
+    # 현재 지원되는 주요 심볼들
+    return [
+        'BTCUSDT',
+        'ETHUSDT',
+        'BNBUSDT',
+        'SOLUSDT',
+        'ADAUSDT',
+        'XRPUSDT',
+        'DOGEUSDT',
+        'MATICUSDT',
+        'DOTUSDT',
+        'AVAXUSDT',
+        'LINKUSDT',
+        'ATOMUSDT',
+        'UNIUSDT',
+        'LTCUSDT',
+        'NEARUSDT',
+    ]

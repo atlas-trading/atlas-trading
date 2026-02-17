@@ -244,6 +244,7 @@ def get_session_klines(
     """
     세션의 K-line 데이터 반환 (차트용)
     Redis에서 실시간 데이터 가져오기
+    interval이 1m이 아닌 경우 1m 데이터를 aggregation
     """
     # 1. 세션 확인
     session = db.query(PaperTradingSession).filter(PaperTradingSession.id == session_id).first()
@@ -252,45 +253,112 @@ def get_session_klines(
 
     # 2. Redis 스트림 키 생성 (symbol format: BTC/USDT -> BTCUSDT)
     symbol = session.symbol.replace("/", "")
-    stream_key = f"klines:{symbol}:{interval}"
+
+    # Interval mapping (분 단위)
+    interval_minutes = {
+        '1m': 1,
+        '5m': 5,
+        '15m': 15,
+        '1h': 60,
+        '4h': 240,
+        '1d': 1440,
+    }
+
+    if interval not in interval_minutes:
+        raise HTTPException(status_code=400, detail=f"Unsupported interval: {interval}")
+
+    # 3. 1m 데이터를 항상 가져옴 (다른 interval은 aggregation)
+    base_interval = '1m'
+    stream_key = f"klines:{symbol}:{base_interval}"
+
+    # 필요한 1m 캔들 개수 계산
+    multiplier = interval_minutes[interval]
+    fetch_limit = limit * multiplier * 2  # 여유있게 2배
 
     try:
-        # 3. Redis XREVRANGE로 최근 데이터 가져오기 (최신순)
-        # XREVRANGE stream_key + - COUNT limit
-        messages = redis_client.xrevrange(stream_key, '+', '-', count=limit)
+        # 4. Redis XREVRANGE로 최근 데이터 가져오기 (최신순)
+        messages = redis_client.xrevrange(stream_key, '+', '-', count=fetch_limit)
 
-        # 4. 데이터 파싱 및 변환
-        klines = []
+        # 5. 데이터 파싱
+        klines_1m = []
         for msg_id, msg_data in messages:
             try:
-                # Redis Stream 데이터 형식: {'data': '<json>', 'timestamp': '<unix_ms>'}
                 if 'data' in msg_data:
                     kline_json = json.loads(msg_data['data'])
+                    timestamp_ms = int(msg_data.get('timestamp', 0))
 
-                    # Go collector의 Kline 구조체 매핑
-                    # type Kline struct { Time, Open, High, Low, Close, Volume, ... }
-                    klines.append(KlineData(
-                        time=kline_json.get('Time', kline_json.get('time', 0)),
-                        open=float(kline_json.get('Open', kline_json.get('open', 0))),
-                        high=float(kline_json.get('High', kline_json.get('high', 0))),
-                        low=float(kline_json.get('Low', kline_json.get('low', 0))),
-                        close=float(kline_json.get('Close', kline_json.get('close', 0))),
-                        volume=float(kline_json.get('Volume', kline_json.get('volume', 0)))
-                    ))
-            except (json.JSONDecodeError, KeyError, ValueError) as e:
-                # 개별 메시지 파싱 오류는 로그만 남기고 계속 진행
+                    if timestamp_ms == 0 and 'open_time' in kline_json:
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(kline_json['open_time'].replace('+09:00', '+09:00'))
+                        timestamp_ms = int(dt.timestamp() * 1000)
+
+                    klines_1m.append({
+                        'time': timestamp_ms,
+                        'open': float(kline_json.get('open', 0)),
+                        'high': float(kline_json.get('high', 0)),
+                        'low': float(kline_json.get('low', 0)),
+                        'close': float(kline_json.get('close', 0)),
+                        'volume': float(kline_json.get('volume', 0))
+                    })
+            except (json.JSONDecodeError, KeyError, ValueError):
                 continue
 
-        # 5. 시간순 정렬 (오래된 것부터)
-        klines.reverse()
+        # 6. 시간순 정렬 (오래된 것부터)
+        klines_1m.reverse()
 
-        return klines
+        if not klines_1m:
+            return []
+
+        # 7. Aggregation (interval이 1m이 아닌 경우)
+        if interval == '1m':
+            result = [KlineData(**k) for k in klines_1m]
+        else:
+            import pandas as pd
+
+            # DataFrame 생성
+            df = pd.DataFrame(klines_1m)
+            df['datetime'] = pd.to_datetime(df['time'], unit='ms')
+            df.set_index('datetime', inplace=True)
+
+            # Resample (aggregation)
+            freq_map = {
+                '5m': '5min',
+                '15m': '15min',
+                '1h': '1H',
+                '4h': '4H',
+                '1d': '1D',
+            }
+            freq = freq_map[interval]
+
+            resampled = df.resample(freq).agg({
+                'open': 'first',
+                'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'volume': 'sum'
+            }).dropna()
+
+            # 결과 변환
+            result = []
+            for idx, row in resampled.iterrows():
+                result.append(KlineData(
+                    time=int(idx.timestamp() * 1000),
+                    open=row['open'],
+                    high=row['high'],
+                    low=row['low'],
+                    close=row['close'],
+                    volume=row['volume']
+                ))
+
+            # limit 적용
+            result = result[-limit:]
+
+        return result
 
     except redis.exceptions.ResponseError as e:
-        # Redis 스트림이 존재하지 않는 경우
         raise HTTPException(
             status_code=404,
-            detail=f"No kline data found for {session.symbol} ({interval}). Make sure the Go collector is running."
+            detail=f"No kline data found for {session.symbol}. Make sure the Go collector is running."
         )
     except Exception as e:
         raise HTTPException(

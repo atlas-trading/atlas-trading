@@ -1,5 +1,6 @@
-/* Atlas Trading - Binance Dark Mode Theme */
+/* Atlas Trading - Theme */
 
+/* Dark Mode (Default) */
 :root {
   /* Backgrounds */
   --bg-primary: #0B0E11;
@@ -32,6 +33,41 @@
   --chart-negative: #F6465D;
   --chart-neutral: #848E9C;
   --chart-grid: #2B3139;
+}
+
+/* Light Mode */
+:root:not(.dark) {
+  /* Backgrounds */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F5F5;
+  --bg-tertiary: #FAFAFA;
+  --bg-hover: #E8E8E8;
+
+  /* Borders */
+  --border-primary: #E0E0E0;
+  --border-secondary: #BDBDBD;
+
+  /* Text */
+  --text-primary: #212121;
+  --text-secondary: #616161;
+  --text-tertiary: #9E9E9E;
+
+  /* Brand Colors remain same */
+  --color-binance: #F0B90B;
+  --color-binance-dark: #C99400;
+  --color-binance-light: #F8D33A;
+
+  /* Status Colors remain same */
+  --color-success: #0ECB81;
+  --color-danger: #F6465D;
+  --color-warning: #F0B90B;
+
+  /* Chart Colors */
+  --chart-primary: #F0B90B;
+  --chart-positive: #0ECB81;
+  --chart-negative: #F6465D;
+  --chart-neutral: #616161;
+  --chart-grid: #E0E0E0;
 }
 
 * {

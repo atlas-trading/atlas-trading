@@ -1,18 +1,13 @@
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   HomeIcon,
-  ChartBarIcon,
   BeakerIcon,
-  CogIcon,
   ChartPieIcon,
   BanknotesIcon,
-  CubeIcon,
   ClipboardDocumentListIcon,
   PlayIcon
 } from '@heroicons/react/24/outline';
 import { useNetwork } from '../../contexts/NetworkContext';
-import SettingsModal from '../common/SettingsModal';
 
 interface MenuItem {
   label: string;
@@ -27,42 +22,29 @@ interface MenuSection {
 
 const menuSections: MenuSection[] = [
   {
-    title: 'Dashboard',
+    title: 'DASHBOARD',
     items: [
       { label: 'Overview', path: '/', icon: HomeIcon },
     ]
   },
   {
-    title: 'Trading',
+    title: 'TRADING (Mainnet)',
+    items: [
+      { label: 'Portfolio', path: '/trading/balance', icon: ChartPieIcon },
+      { label: 'Balance', path: '/trading/balance', icon: BanknotesIcon },
+    ]
+  },
+  {
+    title: 'BACKTEST (Testnet)',
     items: [
       { label: 'Paper Trading', path: '/trading/paper', icon: PlayIcon },
-      { label: 'Balance & Portfolio', path: '/trading/balance', icon: BanknotesIcon },
-      { label: 'Live Positions', path: '/trading/positions', icon: CubeIcon },
-      { label: 'Order History', path: '/trading/orders', icon: ClipboardDocumentListIcon },
-    ]
-  },
-  {
-    title: 'Backtesting',
-    items: [
       { label: 'Backtest List', path: '/backtests', icon: BeakerIcon },
-      { label: 'Run New Backtest', path: '/backtests/run', icon: ChartBarIcon },
-      { label: 'Compare', path: '/compare', icon: ChartPieIcon },
     ]
   },
   {
-    title: 'Strategies',
+    title: 'ANALYSIS',
     items: [
-      { label: 'Strategy List', path: '/strategies', icon: CogIcon },
-      { label: 'Edit Parameters', path: '/strategies/edit', icon: CogIcon },
-    ]
-  },
-  {
-    title: 'Analysis',
-    items: [
-      { label: 'Live Performance', path: '/analysis/live', icon: ChartBarIcon },
-      { label: 'Backtest Analysis', path: '/analysis/backtest', icon: BeakerIcon },
-      { label: 'Market Analysis', path: '/analysis/market', icon: ChartPieIcon },
-      { label: 'Risk Monitoring', path: '/analysis/risk', icon: ChartBarIcon },
+      { label: 'Order History', path: '/trading/orders', icon: ClipboardDocumentListIcon },
     ]
   },
 ];
@@ -70,7 +52,6 @@ const menuSections: MenuSection[] = [
 export default function Sidebar() {
   const location = useLocation();
   const { network } = useNetwork();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
@@ -83,9 +64,6 @@ export default function Sidebar() {
         <div className="sidebar-logo-container">
           <img src="/logo.png" alt="Atlas Trading" className="sidebar-logo-img" />
           <h1 className="sidebar-logo">Atlas Trading</h1>
-        </div>
-        <div className={`network-badge ${network}`}>
-          {network === 'testnet' ? 'Testnet' : 'Mainnet'}
         </div>
       </div>
 
@@ -114,26 +92,6 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
-
-      {/* Settings at bottom */}
-      <div className="sidebar-settings">
-        <ul className="sidebar-menu">
-          <li>
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="sidebar-menu-item"
-            >
-              <CogIcon className="sidebar-menu-icon" />
-              <span>Settings</span>
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <SettingsModal onClose={() => setIsSettingsOpen(false)} />
-      )}
     </aside>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createChart, type IChartApi, type ISeriesApi, type CandlestickData, type Time } from 'lightweight-charts';
+import { createChart, CandlestickSeries, type IChartApi, type ISeriesApi, type CandlestickData, type Time } from 'lightweight-charts';
 import type { PaperTradingTrade } from '../../types/paper_trading';
 
 interface KlineData {
@@ -37,7 +37,7 @@ export default function CandlestickChart({ klineData, trades, onTradeClick }: Ca
         horzLines: { color: 'rgba(255, 255, 255, 0.1)' },
       },
       crosshair: {
-        mode: 1,
+        mode: 0, // Normal mode (not magnet)
         vertLine: {
           color: '#F0B90B',
           width: 1,
@@ -64,11 +64,11 @@ export default function CandlestickChart({ klineData, trades, onTradeClick }: Ca
         secondsVisible: false,
       },
       width: chartContainerRef.current.clientWidth,
-      height: 500,
+      height: 700,
     });
 
-    // Create candlestick series
-    const candlestickSeries = (chart as any).addCandlestickSeries({
+    // Create candlestick series (v5.x API)
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#0ECB81',
       downColor: '#F6465D',
       borderUpColor: '#0ECB81',
@@ -99,17 +99,36 @@ export default function CandlestickChart({ klineData, trades, onTradeClick }: Ca
 
   // Update candlestick data
   useEffect(() => {
-    if (!candlestickSeriesRef.current || klineData.length === 0) return;
+    if (!candlestickSeriesRef.current || klineData.length === 0) {
+      console.log('⚠️ Kline data empty or series not ready. Length:', klineData.length);
+      return;
+    }
 
-    const formattedData: CandlestickData[] = klineData.map((candle) => ({
-      time: (candle.time / 1000) as Time, // Convert ms to seconds
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    }));
+    // Format and clean data
+    const formattedData: CandlestickData[] = klineData
+      .filter((candle) => candle.time > 0) // Filter invalid times
+      .map((candle) => ({
+        time: (candle.time / 1000) as Time, // Convert ms to seconds
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+      }))
+      .sort((a, b) => (a.time as number) - (b.time as number)); // Sort ascending
 
-    candlestickSeriesRef.current.setData(formattedData);
+    // Remove duplicates (keep last occurrence)
+    const uniqueData = Array.from(
+      new Map(formattedData.map(item => [item.time, item])).values()
+    );
+
+    if (uniqueData.length === 0) return;
+
+    try {
+      candlestickSeriesRef.current.setData(uniqueData);
+      chartRef.current?.timeScale().fitContent();
+    } catch (error) {
+      console.error('❌ Chart error:', error);
+    }
 
     // Fit content to visible range
     if (chartRef.current) {
@@ -210,7 +229,7 @@ export default function CandlestickChart({ klineData, trades, onTradeClick }: Ca
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
-      <div ref={chartContainerRef} style={{ width: '100%', height: '500px' }} />
+      <div ref={chartContainerRef} style={{ width: '100%', height: '700px' }} />
 
       {/* Trade Hover Tooltip */}
       {hoveredTrade && tooltipPos && (
