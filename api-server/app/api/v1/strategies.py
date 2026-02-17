@@ -105,8 +105,9 @@ def list_available_strategies():
         try:
             temp_instance = strategy_class()
             description = temp_instance.get_description()
-        except:
-            description = ""
+        except Exception as e:
+            # 전략 인스턴스 생성 실패 시 클래스 docstring 사용
+            description = strategy_class.__doc__.strip().split('\n')[0] if strategy_class.__doc__ else ""
 
         strategies.append({
             'strategy_name': name,

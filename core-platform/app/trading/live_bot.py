@@ -222,13 +222,13 @@ class LiveTradingBot:
         current_price = float(latest_bar['close'])
 
         # 시그널 실행
-        if signal == 'long' and not has_position:
+        if signal.action == 'long' and not has_position:
             self.open_position('long', current_price)
 
-        elif signal == 'short' and not has_position:
+        elif signal.action == 'short' and not has_position:
             self.open_position('short', current_price)
 
-        elif signal == 'close' and has_position:
+        elif signal.action == 'close' and has_position:
             self.close_position(current_price)
 
         else:

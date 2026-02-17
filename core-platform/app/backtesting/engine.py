@@ -149,11 +149,23 @@ class BacktestEngine:
 
     def execute_short(self, price: float, timestamp: datetime, size_pct: float = 1.0):
         """
-        숏 포지션 진입 (현재는 단순화를 위해 미구현)
+        숏 포지션 진입
 
-        실제 구현시에는 마진, 펀딩 비용 등을 고려해야 함
+        Args:
+            price: 진입 가격
+            timestamp: 진입 시간
+            size_pct: 자본금의 몇 %를 사용할지 (0.0 ~ 1.0)
         """
-        pass
+        if self.position.is_open():
+            return
+
+        # 사용할 금액 계산
+        capital_to_use = self.cash * size_pct
+        commission_cost = capital_to_use * self.commission
+        quantity = (capital_to_use - commission_cost) / price
+
+        self.position.open("short", price, quantity, timestamp, position_size_pct=size_pct)
+        self.cash -= capital_to_use
 
     def close_position(self, price: float, timestamp: datetime) -> Optional[Dict[str, Any]]:
         """
@@ -169,14 +181,25 @@ class BacktestEngine:
         if not self.position.is_open():
             return None
 
-        # 매도 금액 계산
-        sell_value = self.position.quantity * price
-        commission_cost = sell_value * self.commission
-        proceeds = sell_value - commission_cost
-
-        # 손익 계산
+        # 초기 투자금
         cost = self.position.quantity * self.position.entry_price
-        pnl = proceeds - cost
+
+        if self.position.side == "long":
+            # 롱 포지션 청산
+            sell_value = self.position.quantity * price
+            commission_cost = sell_value * self.commission
+            proceeds = sell_value - commission_cost
+            pnl = proceeds - cost
+
+        else:  # short
+            # 숏 포지션 청산: 가격이 떨어지면 이익, 오르면 손실
+            buy_back_value = self.position.quantity * price
+            commission_cost = buy_back_value * self.commission
+            # 숏은 진입 가격에 팔고, 청산 가격에 다시 사는 것
+            # 진입 시 받은 돈 - 청산 시 다시 사는 비용 - 수수료
+            proceeds = cost - buy_back_value - commission_cost
+            pnl = proceeds
+
         pnl_pct = (pnl / cost) * 100
 
         # 거래 기록
@@ -196,7 +219,11 @@ class BacktestEngine:
         self.trades.append(trade)
 
         # 현금 업데이트
-        self.cash += proceeds
+        if self.position.side == "long":
+            self.cash += proceeds
+        else:  # short
+            # 숏 청산: 처음 받은 금액에서 다시 사는 비용 차감
+            self.cash += cost + pnl - (cost * self.commission)
 
         # 포지션 닫기
         self.position.close()
@@ -364,9 +391,20 @@ class BacktestEngine:
         # Sharpe Ratio (간단 계산)
         equity_df["returns"] = equity_df["equity"].pct_change()
         if len(equity_df) > 1 and equity_df["returns"].std() > 0:
+            # 타임프레임별 연율화 계산
+            annualization_factors = {
+                '1m': np.sqrt(252 * 390),      # 252 trading days * 390 minutes per day
+                '5m': np.sqrt(252 * 78),       # 252 * (390/5)
+                '15m': np.sqrt(252 * 26),      # 252 * (390/15)
+                '1h': np.sqrt(252 * 6.5),      # 252 * 6.5 trading hours
+                '4h': np.sqrt(252 * 1.625),    # 252 * (6.5/4)
+                '1d': np.sqrt(252),
+            }
+            annualization_factor = annualization_factors.get(timeframe, np.sqrt(252))
+
             sharpe_ratio = (
                 equity_df["returns"].mean() / equity_df["returns"].std()
-            ) * np.sqrt(252)  # 연율화
+            ) * annualization_factor
         else:
             sharpe_ratio = 0.0
 

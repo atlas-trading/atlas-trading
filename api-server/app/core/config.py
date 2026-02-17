@@ -4,10 +4,14 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-# Load .env file using absolute path
-ENV_PATH = Path("/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform/.env")
+# Load .env file using relative path from project root
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent / "core-platform"
+ENV_PATH = Path(os.getenv("ENV_PATH", PROJECT_ROOT / ".env"))
 if ENV_PATH.exists():
     load_dotenv(ENV_PATH)
+
+# Core platform path for importing modules
+CORE_PLATFORM_PATH = Path(os.getenv("CORE_PLATFORM_PATH", PROJECT_ROOT))
 
 
 class Settings(BaseSettings):

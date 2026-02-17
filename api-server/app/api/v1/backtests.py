@@ -596,9 +596,10 @@ def run_backtest(
     """
     import sys
     import os
+    from app.core.config import CORE_PLATFORM_PATH
 
     # Add core-platform to path BEFORE any imports
-    core_platform_path = '/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform'
+    core_platform_path = str(CORE_PLATFORM_PATH)
     if core_platform_path not in sys.path:
         sys.path.insert(0, core_platform_path)
 
