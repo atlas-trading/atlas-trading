@@ -94,9 +94,9 @@ def _equity_to_response(obj: BacktestEquity) -> EquityPointResponse:
 
 
 @router.get("/", response_model=list[BacktestRunSummaryResponse])
-def list_backtests(
+async def list_backtests(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(20, ge=1, le=100),
     strategy_name: str | None = None,
     symbol: str | None = None,
     db: Session = Depends(get_db),
@@ -124,7 +124,7 @@ def list_backtests(
 
 
 @router.get("/{backtest_id}", response_model=BacktestRunDetailResponse)
-def get_backtest(
+async def get_backtest(
     backtest_id: int,
     db: Session = Depends(get_db),
 ) -> BacktestRunDetailResponse:
@@ -138,8 +138,9 @@ def get_backtest(
 
 
 @router.get("/{backtest_id}/full", response_model=BacktestRunFullResponse)
-def get_backtest_full(
+async def get_backtest_full(
     backtest_id: int,
+    sample_equity: int | None = Query(100, ge=10, le=1000, description="Equity curve sample size"),
     db: Session = Depends(get_db),
 ) -> BacktestRunFullResponse:
     """백테스트 실행 전체 조회 (거래 + 자산 곡선 포함)"""
@@ -157,7 +158,17 @@ def get_backtest_full(
         raise HTTPException(status_code=404, detail="Backtest not found")
 
     trades = [_trade_to_response(t) for t in backtest.trades]
-    equity_curve = [_equity_to_response(e) for e in backtest.equity_curve]
+
+    # Equity curve 샘플링
+    equity_data = backtest.equity_curve
+    if sample_equity and len(equity_data) > sample_equity:
+        indices = [0]
+        step = (len(equity_data) - 1) / (sample_equity - 1)
+        indices.extend([int(i * step) for i in range(1, sample_equity - 1)])
+        indices.append(len(equity_data) - 1)
+        equity_data = [equity_data[i] for i in indices]
+
+    equity_curve = [_equity_to_response(e) for e in equity_data]
 
     return BacktestRunFullResponse(
         id=backtest.id,
@@ -184,7 +195,7 @@ def get_backtest_full(
 
 
 @router.get("/{backtest_id}/trades", response_model=list[TradeResponse])
-def get_backtest_trades(
+async def get_backtest_trades(
     backtest_id: int,
     db: Session = Depends(get_db),
 ) -> list[TradeResponse]:
@@ -204,11 +215,21 @@ def get_backtest_trades(
 
 
 @router.get("/{backtest_id}/equity", response_model=list[EquityPointResponse])
-def get_backtest_equity(
+async def get_backtest_equity(
     backtest_id: int,
+    sample: int | None = Query(None, ge=10, le=1000, description="Sample size for downsampling (None = all points)"),
     db: Session = Depends(get_db),
 ) -> list[EquityPointResponse]:
-    """백테스트 자산 곡선 조회"""
+    """
+    백테스트 자산 곡선 조회
+
+    Parameters:
+    - sample: 샘플링 개수 (예: 100). None이면 모든 포인트 반환
+
+    Performance:
+    - Without sampling: ~2000 points = 200 KB
+    - With sample=100: 100 points = 10 KB (95% reduction)
+    """
     backtest = db.query(BacktestRun).filter(BacktestRun.id == backtest_id).first()
     if not backtest:
         raise HTTPException(status_code=404, detail="Backtest not found")
@@ -219,6 +240,15 @@ def get_backtest_equity(
         .order_by(BacktestEquity.timestamp)
         .all()
     )
+
+    # 샘플링 적용
+    if sample and len(equity_curve) > sample:
+        # 균등 간격 샘플링 (first and last included)
+        indices = [0]  # 첫 포인트 포함
+        step = (len(equity_curve) - 1) / (sample - 1)
+        indices.extend([int(i * step) for i in range(1, sample - 1)])
+        indices.append(len(equity_curve) - 1)  # 마지막 포인트 포함
+        equity_curve = [equity_curve[i] for i in indices]
 
     return [_equity_to_response(e) for e in equity_curve]
 

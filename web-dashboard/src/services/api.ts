@@ -53,8 +53,10 @@ export const backtestAPI = {
   },
 
   // Get full backtest data (with trades and equity)
-  getBacktestFull: async (id: number): Promise<BacktestRunFull> => {
-    const response = await apiClient.get<BacktestRunFull>(`/backtests/${id}/full`);
+  getBacktestFull: async (id: number, sampleEquity: number = 100): Promise<BacktestRunFull> => {
+    const response = await apiClient.get<BacktestRunFull>(`/backtests/${id}/full`, {
+      params: { sample_equity: sampleEquity }
+    });
     return response.data;
   },
 
@@ -65,8 +67,10 @@ export const backtestAPI = {
   },
 
   // Get equity curve only
-  getEquityCurve: async (id: number): Promise<EquityPoint[]> => {
-    const response = await apiClient.get<EquityPoint[]>(`/backtests/${id}/equity`);
+  getEquityCurve: async (id: number, sample?: number): Promise<EquityPoint[]> => {
+    const response = await apiClient.get<EquityPoint[]>(`/backtests/${id}/equity`, {
+      params: sample ? { sample } : {}
+    });
     return response.data;
   },
 
