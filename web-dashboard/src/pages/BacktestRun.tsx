@@ -1,17 +1,73 @@
 // Backtest Run Page - Execute new backtests
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/common/Card';
+import { strategyAPI, marketAPI, type Strategy, type MarketSymbol, type Timeframe } from '../services/api';
 
 export default function BacktestRun() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [strategyName, setStrategyName] = useState('Golden Cross');
-  const [symbol, setSymbol] = useState('BTCUSDT');
+  // API data states
+  const [strategies, setStrategies] = useState<Strategy[]>([]);
+  const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
+  const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
+
+  // Form states
+  const [strategyName, setStrategyName] = useState('');
+  const [symbol, setSymbol] = useState('');
+  const [timeframe, setTimeframe] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [initialCapital, setInitialCapital] = useState(10000);
   const [commissionRate, setCommissionRate] = useState(0.001);
+
+  // Load data from APIs on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setDataLoading(true);
+        setError(null);
+
+        const [strategiesData, symbolsData, timeframesData] = await Promise.all([
+          strategyAPI.getAvailableStrategies(),
+          marketAPI.getSymbols(),
+          marketAPI.getTimeframes(),
+        ]);
+
+        setStrategies(strategiesData);
+        setSymbols(symbolsData);
+        setTimeframes(timeframesData);
+
+        // Set default values to first item from each API
+        if (strategiesData.length > 0) {
+          setStrategyName(strategiesData[0].name);
+        }
+        if (symbolsData.length > 0) {
+          setSymbol(symbolsData[0].symbol);
+        }
+        if (timeframesData.length > 0) {
+          setTimeframe(timeframesData[0].value);
+        }
+
+        // Set default date range (last 90 days)
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 90);
+        setEndDate(end.toISOString().split('T')[0]);
+        setStartDate(start.toISOString().split('T')[0]);
+
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load configuration data');
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const runBacktest = async () => {
     try {
@@ -29,6 +85,19 @@ export default function BacktestRun() {
       setLoading(false);
     }
   };
+
+  if (dataLoading) {
+    return (
+      <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '30px' }}>
+          <h1 style={{ margin: 0, marginBottom: '10px' }}>Run New Backtest</h1>
+          <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
+            Loading configuration...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
@@ -51,6 +120,7 @@ export default function BacktestRun() {
             <select
               value={strategyName}
               onChange={(e) => setStrategyName(e.target.value)}
+              disabled={strategies.length === 0}
               style={{
                 width: '100%',
                 padding: '10px',
@@ -61,21 +131,28 @@ export default function BacktestRun() {
                 fontSize: '14px',
               }}
             >
-              <option value="Golden Cross">Golden Cross (SMA 50/200)</option>
-              <option value="Mean Reversion" disabled>Mean Reversion (Coming Soon)</option>
-              <option value="Momentum" disabled>Momentum (Coming Soon)</option>
+              {strategies.length === 0 ? (
+                <option value="">No strategies available</option>
+              ) : (
+                strategies.map((strategy) => (
+                  <option key={strategy.name} value={strategy.name}>
+                    {strategy.name}
+                    {strategy.description ? ` - ${strategy.description}` : ''}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
-          {/* Symbol */}
+          {/* Symbol Selection */}
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
               Symbol
             </label>
-            <input
-              type="text"
+            <select
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
+              disabled={symbols.length === 0}
               style={{
                 width: '100%',
                 padding: '10px',
@@ -85,7 +162,91 @@ export default function BacktestRun() {
                 color: 'var(--text-primary)',
                 fontSize: '14px',
               }}
-            />
+            >
+              {symbols.length === 0 ? (
+                <option value="">No symbols available</option>
+              ) : (
+                symbols.map((sym) => (
+                  <option key={sym.symbol} value={sym.symbol}>
+                    {sym.symbol}
+                    {sym.description ? ` - ${sym.description}` : ''}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Timeframe Selection */}
+          <div>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              Timeframe
+            </label>
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              disabled={timeframes.length === 0}
+              style={{
+                width: '100%',
+                padding: '10px',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-primary)',
+                borderRadius: '6px',
+                color: 'var(--text-primary)',
+                fontSize: '14px',
+              }}
+            >
+              {timeframes.length === 0 ? (
+                <option value="">No timeframes available</option>
+              ) : (
+                timeframes.map((tf) => (
+                  <option key={tf.value} value={tf.value}>
+                    {tf.label}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Date Range */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: '6px',
+                  color: 'var(--text-primary)',
+                  fontSize: '14px',
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: 'var(--text-secondary)' }}>
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: '6px',
+                  color: 'var(--text-primary)',
+                  fontSize: '14px',
+                }}
+              />
+            </div>
           </div>
 
           {/* Initial Capital */}

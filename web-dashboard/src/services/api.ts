@@ -99,4 +99,43 @@ export const backtestAPI = {
   },
 };
 
+// Strategy API
+export interface Strategy {
+  name: string;
+  description?: string;
+}
+
+export const strategyAPI = {
+  // Get available strategies
+  getAvailableStrategies: async (): Promise<Strategy[]> => {
+    const response = await apiClient.get<Strategy[]>('/strategies/available');
+    return response.data;
+  },
+};
+
+// Market API
+export interface MarketSymbol {
+  symbol: string;
+  description?: string;
+}
+
+export interface Timeframe {
+  value: string;
+  label: string;
+}
+
+export const marketAPI = {
+  // Get available symbols
+  getSymbols: async (): Promise<MarketSymbol[]> => {
+    const response = await apiClient.get<MarketSymbol[]>('/market/symbols');
+    return response.data;
+  },
+
+  // Get available timeframes
+  getTimeframes: async (): Promise<Timeframe[]> => {
+    const response = await apiClient.get<Timeframe[]>('/market/timeframes');
+    return response.data;
+  },
+};
+
 export default apiClient;
