@@ -8,6 +8,7 @@ import BacktestCompare from './pages/BacktestCompare';
 import BacktestRun from './pages/BacktestRun';
 import Dashboard from './pages/Dashboard';
 import StrategyList from './pages/StrategyList';
+import PaperTrading from './pages/PaperTrading';
 import ComingSoon from './pages/ComingSoon';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
 
             {/* Trading */}
+            <Route path="/trading/paper" element={<PaperTrading />} />
             <Route path="/trading/balance" element={<ComingSoon page="Balance & Portfolio" />} />
             <Route path="/trading/positions" element={<ComingSoon page="Live Positions" />} />
             <Route path="/trading/orders" element={<ComingSoon page="Order History" />} />

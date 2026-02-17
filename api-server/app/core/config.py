@@ -28,6 +28,12 @@ class Settings(BaseSettings):
         "postgresql+psycopg://jang-yeonghwan@localhost/atlas_trading"
     )
 
+    # Redis
+    redis_host: str = os.getenv("REDIS_HOST", "localhost")
+    redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
+    redis_db: int = int(os.getenv("REDIS_DB", "0"))
+    redis_password: str = os.getenv("REDIS_PASSWORD", "")
+
     # CORS
     cors_origins: list[str] = [
         "http://localhost:3000",  # React dev server

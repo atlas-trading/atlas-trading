@@ -8,7 +8,8 @@ import {
   ChartPieIcon,
   BanknotesIcon,
   CubeIcon,
-  ClipboardDocumentListIcon
+  ClipboardDocumentListIcon,
+  PlayIcon
 } from '@heroicons/react/24/outline';
 import { useNetwork } from '../../contexts/NetworkContext';
 import SettingsModal from '../common/SettingsModal';
@@ -34,6 +35,7 @@ const menuSections: MenuSection[] = [
   {
     title: 'Trading',
     items: [
+      { label: 'Paper Trading', path: '/trading/paper', icon: PlayIcon },
       { label: 'Balance & Portfolio', path: '/trading/balance', icon: BanknotesIcon },
       { label: 'Live Positions', path: '/trading/positions', icon: CubeIcon },
       { label: 'Order History', path: '/trading/orders', icon: ClipboardDocumentListIcon },
