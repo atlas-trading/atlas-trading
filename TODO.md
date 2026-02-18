@@ -218,31 +218,53 @@ results/
 **목표:** 24/7 자동 실행 환경
 
 **구성:**
-- [x] ArgoCD GitOps 파이프라인 (Task #86 완료)
-  - k3d 클러스터에 ArgoCD 설치 완료
-  - LoadBalancer 서비스 구성 (Tailscale 네트워크 접근)
-  - Application 매니페스트 생성 (main 브랜치 auto-sync)
-  - 문서화: docs/ARGOCD.md
-- [ ] Docker Compose
-  - PostgreSQL
-  - Redis (캐싱/작업큐)
-  - API Server
-  - Web Dashboard
-  - Nginx (리버스 프록시)
-- [ ] Systemd 설정 (자동 재시작)
-- [ ] 로그 관리 (Logrotate)
-- [x] 모니터링 (Grafana + Prometheus) - 완료 (Task #85, 2026-02-18)
-  - k3d 클러스터에 kube-prometheus-stack 설치
+- [x] ArgoCD GitOps 파이프라인 (2026-02-18 완료)
+  - k3d 클러스터 (Mac Mini M1, arm64)
+  - ArgoCD v3.3.0 설치, Application CRD 등록
+  - `cluster-config/` 경로, `directory.recurse: true`
+  - `.argocdignore`: scripts/, k3s/, manifests/, *.md, argocd/, base/ 제외
+  - GitHub Actions → ghcr.io → ArgoCD 자동 CD
+  - CI 루프 방지: `github.actor != 'github-actions[bot]'` + `[skip ci]`
+- [x] GitHub Actions CI/CD (2026-02-18 완료)
+  - 단일 job `build-and-deploy`로 통합
+  - multi-platform 빌드: `linux/amd64,linux/arm64` (Mac Mini M1 대응)
+  - Discord 배포 알림 (`DISCORD_WEBHOOK` secret)
+  - ghcr.io private registry pull: k3s `registries.yaml` + imagePullSecrets
+- [x] Blue-Green 배포 (2026-02-18 완료)
+  - api-server-blue/green, web-dashboard-blue/green
+  - ghcr.io 이미지: `ghcr.io/atlas-trading/atlas-trading/{service}:main-{sha}`
+  - imagePullSecrets: `ghcr-secret` (PAT 기반)
+- [x] Sealed Secrets controller v0.27.0 설치 (2026-02-18)
+  - CRD: `sealedsecrets.bitnami.com`
+  - Exchange API Key 관리 UI (`Admin > API Keys`)
+  - k8s ServiceAccount + Role (secrets CRUD) + RoleBinding
+- [x] macOS LaunchAgents 영구 port-forward (2026-02-18)
+  - ArgoCD: localhost:8081
+  - Grafana: localhost:3000
+  - ingress-nginx: localhost:32660
+- [x] 모니터링 (Grafana + Prometheus) (2026-02-18)
   - Tailscale 네트워크로 접근: http://100.110.86.86:31177
-  - Kubernetes 클러스터/Node Exporter 메트릭 수집
-  - 사전 구성된 대시보드 포함
-  - 문서: docs/MONITORING.md
 - [ ] 백업 자동화 (DB + 파일)
 
+**현재 알려진 이슈:**
+- ArgoCD가 blue-green deployment에 `selfHeal`로 ghcr.io 이미지 업데이트 시도 중
+  - 구 pod들(`atlas-trading/...:blue` 로컬 이미지)은 여전히 Running
+  - 새 pod들(ghcr.io 이미지)은 CI multi-platform 빌드 완료 후 정상화 예정
+- `base/` 디렉토리 리소스(configmap, postgres, namespace, secret)는 ArgoCD 관리 제외
+  - ArgoCD `.argocdignore`에서 `base/` 전체 제외
+  - 수동 `kubectl apply` 로 관리
+
+**Exchange API Key 관리:**
+- Secret 이름: `exchange-binance-mainnet`, `exchange-binance-testnet`, `exchange-bybit-mainnet`, `exchange-bybit-testnet`
+- Admin > API Keys 페이지에서 KV 업로드
+- 값은 서버에서 base64 인코딩, UI에는 키 이름만 표시
+
 **구현 위치:**
-- `docker-compose.yml`
-- `nginx.conf`
-- `systemd/atlas-trading.service`
+- `cluster-config/` - k8s 매니페스트 (ArgoCD 관리)
+- `cluster-config/blue-green/` - Deployment, Service, RBAC
+- `cluster-config/argocd/` - ArgoCD Application (.argocdignore로 제외)
+- `cluster-config/base/` - 수동 관리 리소스 (.argocdignore로 제외)
+- `cluster-config/scripts/launchagents/` - macOS 영구 port-forward
 
 ---
 
@@ -306,6 +328,16 @@ results/
 - [x] Rolling Sharpe ratio
 - [x] Holding time vs PnL analysis
 - [x] Slight Edge visualization
+- [x] ArgoCD GitOps (k3d, directory.recurse, .argocdignore)
+- [x] GitHub Actions CI/CD 단일 job 통합 + multi-platform (amd64+arm64)
+- [x] Discord 배포 알림
+- [x] Environment 탭 → System/Infrastructure/Deployment 별도 sidebar
+- [x] TSDB localStorage (최대 100개, FIFO) - Infrastructure 차트
+- [x] Deployment History 실제 히스토리 (TSDB 기반)
+- [x] Sealed Secrets controller 설치
+- [x] Exchange API Key 관리 UI (Admin > API Keys)
+- [x] k8s Secret CRUD API (`/api/v1/k8s-secrets`)
+- [x] macOS LaunchAgents 영구 port-forward (ArgoCD/Grafana/ingress)
 
 ---
 
