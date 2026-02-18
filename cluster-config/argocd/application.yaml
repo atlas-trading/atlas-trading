@@ -10,6 +10,8 @@ spec:
     repoURL: https://github.com/atlas-trading/atlas-trading
     targetRevision: main
     path: cluster-config
+    directory:
+      recurse: true
 
   destination:
     server: https://kubernetes.default.svc
