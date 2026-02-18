@@ -106,13 +106,16 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Deployment status
-        run: |
-          if [ "${{ needs.build-and-push.result }}" == "success" ]; then
-            echo "✅ Build and deployment successful!"
-            echo "Images pushed to GitHub Container Registry"
-            echo "ArgoCD will automatically sync the changes"
-          else
-            echo "❌ Build or deployment failed"
-            exit 1
-          fi
+      - name: Notify Discord
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: ${{ needs.build-and-push.result }}
+          title: "Atlas Trading Deploy"
+          description: |
+            **Branch:** `${{ github.ref_name }}`
+            **Commit:** `${{ github.sha }}`
+            **Message:** ${{ github.event.head_commit.message }}
+          color: ${{ needs.build-and-push.result == 'success' && '0x0ECB81' || '0xF6465D' }}
+          username: "Atlas Bot"
+          url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
