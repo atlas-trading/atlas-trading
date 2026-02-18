@@ -2,10 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   HomeIcon,
   BeakerIcon,
-  ChartPieIcon,
   BanknotesIcon,
   ClipboardDocumentListIcon,
-  PlayIcon
+  PlayIcon,
+  ServerIcon
 } from '@heroicons/react/24/outline';
 import { useNetwork } from '../../contexts/NetworkContext';
 
@@ -30,7 +30,6 @@ const menuSections: MenuSection[] = [
   {
     title: 'TRADING (Mainnet)',
     items: [
-      { label: 'Portfolio', path: '/trading/balance', icon: ChartPieIcon },
       { label: 'Balance', path: '/trading/balance', icon: BanknotesIcon },
     ]
   },
@@ -45,6 +44,12 @@ const menuSections: MenuSection[] = [
     title: 'ANALYSIS',
     items: [
       { label: 'Order History', path: '/trading/orders', icon: ClipboardDocumentListIcon },
+    ]
+  },
+  {
+    title: 'ENVIRONMENT',
+    items: [
+      { label: 'Infrastructure', path: '/environment', icon: ServerIcon },
     ]
   },
 ];
