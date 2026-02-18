@@ -23,7 +23,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: api-server
-        image: ghcr.io/atlas-trading/atlas-trading/api-server:main-c18300c
+        image: ghcr.io/atlas-trading/atlas-trading/api-server:main-f612c84
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
