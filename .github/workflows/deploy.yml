@@ -89,15 +89,15 @@ jobs:
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
 
           # Update image tags in Kubernetes manifests
-          sed -i "s|ghcr.io/.*/api-server:.*|ghcr.io/${{ env.API_IMAGE_NAME }}:main-${SHORT_SHA}|g" k8s/blue-green/api-server-*.yaml
-          sed -i "s|ghcr.io/.*/web-dashboard:.*|ghcr.io/${{ env.WEB_IMAGE_NAME }}:main-${SHORT_SHA}|g" k8s/blue-green/web-dashboard-*.yaml
+          sed -i "s|ghcr.io/.*/api-server:.*|ghcr.io/${{ env.API_IMAGE_NAME }}:main-${SHORT_SHA}|g" cluster-config/blue-green/api-server-*.yaml
+          sed -i "s|ghcr.io/.*/web-dashboard:.*|ghcr.io/${{ env.WEB_IMAGE_NAME }}:main-${SHORT_SHA}|g" cluster-config/blue-green/web-dashboard-*.yaml
 
       - name: Commit and push updated manifests
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add k8s/blue-green/*.yaml
+          git add cluster-config/blue-green/*.yaml
           git diff --staged --quiet || git commit -m "Update image tags to $(echo ${{ github.sha }} | cut -c1-7)"
           git push
 

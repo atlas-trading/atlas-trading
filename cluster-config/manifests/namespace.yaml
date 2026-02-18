@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: trading
-  labels:
-    name: trading
-    purpose: crypto-trading
