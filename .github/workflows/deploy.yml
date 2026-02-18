@@ -16,7 +16,7 @@ env:
   WEB_IMAGE_NAME: ${{ github.repository }}/web-dashboard
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -83,39 +83,32 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Update Kubernetes manifests
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.actor != 'github-actions[bot]'
         run: |
-          # Extract short SHA for image tag
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-
-          # Update image tags in Kubernetes manifests
           sed -i "s|ghcr.io/.*/api-server:.*|ghcr.io/${{ env.API_IMAGE_NAME }}:main-${SHORT_SHA}|g" cluster-config/blue-green/api-server-*.yaml
           sed -i "s|ghcr.io/.*/web-dashboard:.*|ghcr.io/${{ env.WEB_IMAGE_NAME }}:main-${SHORT_SHA}|g" cluster-config/blue-green/web-dashboard-*.yaml
 
       - name: Commit and push updated manifests
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.actor != 'github-actions[bot]'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add cluster-config/blue-green/*.yaml
-          git diff --staged --quiet || git commit -m "Update image tags to $(echo ${{ github.sha }} | cut -c1-7)"
+          git diff --staged --quiet || git commit -m "Update image tags to $(echo ${{ github.sha }} | cut -c1-7) [skip ci]"
           git push
 
-  notify:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
       - name: Notify Discord
+        if: always() && github.event_name != 'pull_request'
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          status: ${{ needs.build-and-push.result }}
+          status: ${{ job.status }}
           title: "Atlas Trading Deploy"
           description: |
             **Branch:** `${{ github.ref_name }}`
             **Commit:** `${{ github.sha }}`
             **Message:** ${{ github.event.head_commit.message }}
-          color: ${{ needs.build-and-push.result == 'success' && '0x0ECB81' || '0xF6465D' }}
+          color: ${{ job.status == 'success' && '0x0ECB81' || '0xF6465D' }}
           username: "Atlas Bot"
           url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

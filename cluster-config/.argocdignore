@@ -1,0 +1,6 @@
+scripts/
+k3s/
+manifests/
+*.md
+base/sealed-secret-template.yaml
+base/sealed-secrets-controller.yaml
