@@ -18,9 +18,11 @@ spec:
         app: web-dashboard
         version: green
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: web-dashboard
-        image: atlas-trading/web-dashboard:green
+        image: ghcr.io/atlas-trading/atlas-trading/web-dashboard:main-latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80

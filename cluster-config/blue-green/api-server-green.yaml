@@ -18,9 +18,11 @@ spec:
         app: api-server
         version: green
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: api-server
-        image: atlas-trading/api-server:green
+        image: ghcr.io/atlas-trading/atlas-trading/api-server:main-latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
