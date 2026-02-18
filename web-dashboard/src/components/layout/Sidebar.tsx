@@ -5,7 +5,9 @@ import {
   BanknotesIcon,
   ClipboardDocumentListIcon,
   PlayIcon,
-  ServerIcon
+  ServerIcon,
+  CpuChipIcon,
+  RocketLaunchIcon,
 } from '@heroicons/react/24/outline';
 import { useNetwork } from '../../contexts/NetworkContext';
 
@@ -49,7 +51,9 @@ const menuSections: MenuSection[] = [
   {
     title: 'ENVIRONMENT',
     items: [
-      { label: 'Infrastructure', path: '/environment', icon: ServerIcon },
+      { label: 'System', path: '/environment/system', icon: CpuChipIcon },
+      { label: 'Infrastructure', path: '/environment/infrastructure', icon: ServerIcon },
+      { label: 'Deployment', path: '/environment/deployment', icon: RocketLaunchIcon },
     ]
   },
 ];

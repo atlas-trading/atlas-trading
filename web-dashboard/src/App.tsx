@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NetworkProvider } from './contexts/NetworkContext';
 import MainLayout from './components/layout/MainLayout';
@@ -7,7 +7,9 @@ import BacktestDetail from './pages/BacktestDetail';
 import Dashboard from './pages/Dashboard';
 import StrategyList from './pages/StrategyList';
 import PaperTrading from './pages/PaperTrading';
-import Environment from './pages/Environment';
+import SystemPage from './pages/SystemPage';
+import InfrastructurePage from './pages/InfrastructurePage';
+import DeploymentPage from './pages/DeploymentPage';
 import ComingSoon from './pages/ComingSoon';
 
 function App() {
@@ -31,8 +33,11 @@ function App() {
               {/* Strategies */}
               <Route path="/strategies" element={<StrategyList />} />
 
-              {/* Environment */}
-              <Route path="/environment" element={<Environment />} />
+              {/* Environment - separate pages per tab */}
+              <Route path="/environment" element={<Navigate to="/environment/system" replace />} />
+              <Route path="/environment/system" element={<SystemPage />} />
+              <Route path="/environment/infrastructure" element={<InfrastructurePage />} />
+              <Route path="/environment/deployment" element={<DeploymentPage />} />
 
               {/* Analysis */}
               <Route path="/trading/orders" element={<ComingSoon page="Order History" />} />
