@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
 import { environmentAPI } from '../../services/environmentApi';
 import type { InfrastructureMetrics } from '../../types/environment';
+import { useMetricsTSDB } from '../../hooks/useMetricsTSDB';
+
+interface MetricsSnapshot {
+  timestamp: string;
+  cpuPercent: number;
+  memoryPercent: number;
+}
 
 export default function InfrastructureMonitor() {
   const [metrics, setMetrics] = useState<InfrastructureMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { history, addEntry, clearHistory } = useMetricsTSDB<MetricsSnapshot>('infra-metrics-tsdb');
 
   const fetchMetrics = async () => {
     try {
@@ -14,6 +22,13 @@ export default function InfrastructureMonitor() {
       setMetrics(data);
       setError(null);
       setLoading(false);
+      const cpu = parseFloat(((data.cpu_usage / data.cpu_total) * 100).toFixed(1));
+      const mem = parseFloat(((data.memory_usage / data.memory_total) * 100).toFixed(1));
+      addEntry({
+        timestamp: new Date().toISOString(),
+        cpuPercent: cpu,
+        memoryPercent: mem,
+      });
     } catch (err) {
       setError('Failed to fetch infrastructure metrics. Backend may not be available.');
       setLoading(false);
@@ -209,6 +224,99 @@ export default function InfrastructureMonitor() {
           </div>
         </div>
       )}
+
+      {history.length > 0 && (() => {
+        const recentHistory = history.slice(-20);
+        const chartData = recentHistory.map(entry => ({
+          time: new Date(entry.timestamp).toLocaleTimeString('ko-KR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          }),
+          cpu: entry.cpuPercent,
+          memory: entry.memoryPercent,
+        }));
+        const firstTs = new Date(recentHistory[0].timestamp);
+        const lastTs = new Date(recentHistory[recentHistory.length - 1].timestamp);
+        const diffMinutes = Math.round((lastTs.getTime() - firstTs.getTime()) / 60000);
+
+        return (
+          <div className="card" style={{ marginTop: '1.5rem' }}>
+            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 className="card-title">Resource Usage History</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <span className="text-muted" style={{ fontSize: '0.875rem' }}>
+                  {diffMinutes > 0 ? `지난 ${diffMinutes}분` : '최근'} 데이터 ({recentHistory.length}포인트)
+                </span>
+                <button
+                  onClick={clearHistory}
+                  style={{
+                    padding: '0.25rem 0.75rem',
+                    fontSize: '0.75rem',
+                    backgroundColor: 'transparent',
+                    border: '1px solid var(--border-primary)',
+                    borderRadius: '4px',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className="card-body">
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis
+                    dataKey="time"
+                    stroke="var(--text-tertiary)"
+                    tick={{ fontSize: 11 }}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    stroke="var(--text-tertiary)"
+                    domain={[0, 100]}
+                    tickFormatter={(v) => `${v}%`}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-primary)',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number, name: string) => [
+                      `${value}%`,
+                      name === 'cpu' ? 'CPU Usage' : 'Memory Usage',
+                    ]}
+                  />
+                  <Legend
+                    formatter={(value) => value === 'cpu' ? 'CPU Usage %' : 'Memory Usage %'}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="cpu"
+                    stroke="#F0B90B"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="memory"
+                    stroke="#0ECB81"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

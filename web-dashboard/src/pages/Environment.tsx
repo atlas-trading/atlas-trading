@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import SystemMonitor from '../components/environment/SystemMonitor';
 import InfrastructureMonitor from '../components/environment/InfrastructureMonitor';
+import DeploymentStatus from '../components/environment/DeploymentStatus';
 
-type TabType = 'system' | 'infrastructure';
+type TabType = 'system' | 'infrastructure' | 'deployment';
 
 export default function Environment() {
   const [activeTab, setActiveTab] = useState<TabType>('system');
@@ -28,11 +29,18 @@ export default function Environment() {
           >
             Infrastructure
           </button>
+          <button
+            className={`tab ${activeTab === 'deployment' ? 'active' : ''}`}
+            onClick={() => setActiveTab('deployment')}
+          >
+            Deployment
+          </button>
         </div>
 
         <div className="tab-content">
           {activeTab === 'system' && <SystemMonitor />}
           {activeTab === 'infrastructure' && <InfrastructureMonitor />}
+          {activeTab === 'deployment' && <DeploymentStatus />}
         </div>
       </div>
     </div>

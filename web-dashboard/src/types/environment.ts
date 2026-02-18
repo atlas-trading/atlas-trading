@@ -32,3 +32,17 @@ export interface DeploymentStatus {
   ready_replicas: number;
   available: boolean;
 }
+
+export interface ArgoDeploymentStatus {
+  health: 'Healthy' | 'Progressing' | 'Degraded' | 'Suspended' | 'Unknown';
+  sync_status: 'Synced' | 'OutOfSync' | 'Unknown';
+  images: {
+    api_server: string;
+    web_dashboard: string;
+  };
+  last_deployment: {
+    time: string;
+    commit: string;
+    status: 'success' | 'failed' | 'progressing';
+  };
+}
