@@ -8,6 +8,7 @@ import {
   ServerIcon,
   CpuChipIcon,
   RocketLaunchIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline';
 import { useNetwork } from '../../contexts/NetworkContext';
 
@@ -54,6 +55,12 @@ const menuSections: MenuSection[] = [
       { label: 'System', path: '/environment/system', icon: CpuChipIcon },
       { label: 'Infrastructure', path: '/environment/infrastructure', icon: ServerIcon },
       { label: 'Deployment', path: '/environment/deployment', icon: RocketLaunchIcon },
+    ]
+  },
+  {
+    title: 'ADMIN',
+    items: [
+      { label: 'API Keys', path: '/admin/secrets', icon: KeyIcon },
     ]
   },
 ];

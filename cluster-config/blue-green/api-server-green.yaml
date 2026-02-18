@@ -18,6 +18,7 @@ spec:
         app: api-server
         version: green
     spec:
+      serviceAccountName: api-server
       imagePullSecrets:
       - name: ghcr-secret
       containers:

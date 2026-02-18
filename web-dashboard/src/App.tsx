@@ -11,6 +11,7 @@ import SystemPage from './pages/SystemPage';
 import InfrastructurePage from './pages/InfrastructurePage';
 import DeploymentPage from './pages/DeploymentPage';
 import ComingSoon from './pages/ComingSoon';
+import SecretsPage from './pages/SecretsPage';
 
 function App() {
   return (
@@ -41,6 +42,9 @@ function App() {
 
               {/* Analysis */}
               <Route path="/trading/orders" element={<ComingSoon page="Order History" />} />
+
+              {/* Admin */}
+              <Route path="/admin/secrets" element={<SecretsPage />} />
             </Routes>
         </MainLayout>
         </NetworkProvider>

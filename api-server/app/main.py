@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.api.v1 import backtests, strategies, parameter_optimization, market, paper_trading, environment, deployment
+from app.api.v1 import backtests, strategies, parameter_optimization, market, paper_trading, environment, deployment, secrets
 
 # Create FastAPI app
 app = FastAPI(
@@ -69,6 +69,12 @@ app.include_router(
     deployment.router,
     prefix=f"{settings.api_prefix}",
     tags=["deployment"],
+)
+
+app.include_router(
+    secrets.router,
+    prefix=f"{settings.api_prefix}",
+    tags=["secrets"],
 )
 
 
