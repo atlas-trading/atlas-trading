@@ -22,7 +22,7 @@ spec:
       - name: ghcr-secret
       containers:
       - name: web-dashboard
-        image: ghcr.io/atlas-trading/atlas-trading/web-dashboard:main-latest
+        image: ghcr.io/atlas-trading/atlas-trading/web-dashboard:main-f2fa1aa
         imagePullPolicy: Always
         ports:
         - containerPort: 80
