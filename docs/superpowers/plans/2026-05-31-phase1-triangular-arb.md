@@ -209,16 +209,36 @@ def event_loop():
     loop.close()
 ```
 
-- [ ] **Step 4: 설치 확인**
+- [ ] **Step 4: 타입 테스트 작성**
+
+```python
+# tests/test_core/test_types.py
+from decimal import Decimal
+from atlas.core.types import TradingPair, Amount
+
+def test_trading_pair_parses_symbol():
+    pair = TradingPair.from_symbol("BTC/USDT")
+    assert pair.base == "BTC"
+    assert pair.quote == "USDT"
+    assert str(pair) == "BTC/USDT"
+
+def test_amount_is_decimal_not_float():
+    # float 연산 오차 방지 — Decimal 사용 강제
+    assert Decimal("0.1") + Decimal("0.2") == Decimal("0.3")
+    assert 0.1 + 0.2 != 0.3  # float은 오차 있음을 문서화
+```
+
+- [ ] **Step 5: 설치 및 테스트 확인**
 
 ```bash
 cd core-platform
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-pytest --collect-only   # 에러 없이 수집되면 통과
+pytest tests/test_core/ -v
+# Expected: 2 passed
 ```
 
-- [ ] **Step 5: 커밋**
+- [ ] **Step 6: 커밋**
 
 ```bash
 git add core-platform/
@@ -387,22 +407,37 @@ git commit -m "feat(events): EventBus with async pub/sub"
 # tests/test_exchange/test_base.py
 import pytest
 from atlas.exchange.base import ExchangeInterface
-from atlas.execution.types import Order, Side, OrderType
+
+def _make_mock():
+    class MockExchange(ExchangeInterface):
+        async def place_order(self, order): return order
+        async def cancel_order(self, order_id): pass
+        async def get_balance(self): return {"USDT": 1000}
+        async def health_check(self): return True
+        async def subscribe_ticker(self, symbols, callback): pass
+        async def close(self): pass
+    return MockExchange()
 
 def test_exchange_interface_is_abstract():
     with pytest.raises(TypeError):
         ExchangeInterface()  # ABC이므로 직접 인스턴스화 불가
 
 def test_mock_exchange_implements_interface():
-    class MockExchange(ExchangeInterface):
-        async def place_order(self, order): return order
-        async def cancel_order(self, order_id): pass
-        async def get_balance(self): return {}
-        async def subscribe_ticker(self, symbols, callback): pass
-        async def close(self): pass
-
-    ex = MockExchange()
+    ex = _make_mock()
     assert isinstance(ex, ExchangeInterface)
+
+@pytest.mark.asyncio
+async def test_health_check_returns_bool():
+    ex = _make_mock()
+    result = await ex.health_check()
+    assert isinstance(result, bool)
+
+@pytest.mark.asyncio
+async def test_get_balance_returns_dict():
+    ex = _make_mock()
+    balance = await ex.get_balance()
+    assert isinstance(balance, dict)
+    assert "USDT" in balance
 ```
 
 - [ ] **Step 2: Order/Fill 타입 정의**
@@ -461,7 +496,7 @@ class Fill:
 # atlas/exchange/base.py
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Coroutine
-from atlas.execution.types import Order, Fill
+from atlas.execution.types import Order
 
 TickerCallback = Callable[[dict], Coroutine[Any, Any, None]]
 
@@ -476,6 +511,11 @@ class ExchangeInterface(ABC):
     async def get_balance(self) -> dict[str, Any]: ...
 
     @abstractmethod
+    async def health_check(self) -> bool:
+        """거래소 연결 및 API 키 유효성 확인. True = 정상."""
+        ...
+
+    @abstractmethod
     async def subscribe_ticker(self, symbols: list[str], callback: TickerCallback) -> None: ...
 
     @abstractmethod
@@ -486,7 +526,7 @@ class ExchangeInterface(ABC):
 
 ```bash
 pytest tests/test_exchange/test_base.py -v
-# Expected: 2 passed
+# Expected: 4 passed
 ```
 
 - [ ] **Step 5: 커밋**
@@ -862,19 +902,69 @@ alembic revision --autogenerate -m "initial schema"
 alembic upgrade head   # 로컬 PostgreSQL 대상
 ```
 
-- [ ] **Step 5: 모델 임포트 테스트**
+- [ ] **Step 5: dev 의존성에 aiosqlite 추가** (테스트용 in-memory DB)
+
+`pyproject.toml`의 `[project.optional-dependencies] dev`에 `"aiosqlite>=0.19.0"` 추가.
+
+- [ ] **Step 6: DB 모델 테스트 작성 (SQLite in-memory)**
 
 ```python
 # tests/test_db/test_models.py
-from atlas.db.models import RawTick, ArbAttempt, OrderRecord
+import pytest
+from datetime import datetime, timezone
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from atlas.db.models import Base, RawTick, ArbAttempt
 
-def test_models_importable():
-    assert RawTick.__tablename__ == "raw_ticks"
-    assert ArbAttempt.__tablename__ == "arb_attempts"
-    assert OrderRecord.__tablename__ == "orders"
+@pytest.fixture
+async def session():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as s:
+        yield s
+    await engine.dispose()
+
+@pytest.mark.asyncio
+async def test_raw_tick_insert_and_query(session):
+    tick = RawTick(
+        exchange="binance",
+        symbol="BTC/USDT",
+        raw_json={"bid": 50000},
+        received_at=datetime.now(timezone.utc),
+    )
+    session.add(tick)
+    await session.commit()
+    await session.refresh(tick)
+    assert tick.id is not None
+
+@pytest.mark.asyncio
+async def test_arb_attempt_state_persists(session):
+    attempt = ArbAttempt(
+        id="test-uuid-001",
+        strategy="triangular_arb",
+        state="COMPLETE",
+        path=["BTC/USDT", "ETH/BTC", "ETH/USDT"],
+        started_at=datetime.now(timezone.utc),
+    )
+    session.add(attempt)
+    await session.commit()
+
+    result = await session.execute(select(ArbAttempt).where(ArbAttempt.id == "test-uuid-001"))
+    fetched = result.scalar_one()
+    assert fetched.state == "COMPLETE"
+    assert fetched.path == ["BTC/USDT", "ETH/BTC", "ETH/USDT"]
 ```
 
-- [ ] **Step 6: 커밋**
+- [ ] **Step 7: 테스트 통과 확인**
+
+```bash
+pytest tests/test_db/ -v
+# Expected: 2 passed
+```
+
+- [ ] **Step 8: 커밋**
 
 ```bash
 git add core-platform/atlas/db/ core-platform/tests/test_db/
@@ -1892,15 +1982,47 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 ```
 
-- [ ] **Step 3: 서버 기동 확인**
+- [ ] **Step 3: /health 엔드포인트 추가** (테스트 진입점)
+
+```python
+# app/main.py 에 추가
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+- [ ] **Step 4: dev 의존성 추가**
+
+```toml
+# api-server/pyproject.toml
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "httpx>=0.27.0"]
+```
+
+- [ ] **Step 5: 헬스체크 테스트 작성**
+
+```python
+# api-server/tests/test_health.py
+from fastapi.testclient import TestClient
+from app.main import app
+
+def test_health_returns_ok():
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+```
+
+- [ ] **Step 6: 테스트 통과 확인**
 
 ```bash
 cd api-server
-uvicorn app.main:app --reload
-# http://localhost:8000/docs 접속 확인
+uv pip install -e ".[dev]"
+pytest tests/test_health.py -v
+# Expected: 1 passed
 ```
 
-- [ ] **Step 4: 커밋**
+- [ ] **Step 7: 커밋**
 
 ```bash
 git add api-server/
@@ -1973,10 +2095,52 @@ async def list_open_positions(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 ```
 
-- [ ] **Step 3: 커밋**
+- [ ] **Step 3: API 엔드포인트 테스트 작성**
+
+```python
+# api-server/tests/test_routes.py
+from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock, MagicMock
+from app.main import app
+from app.db import get_db
+
+def _mock_db_empty():
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    async def override():
+        yield mock_session
+    return override
+
+def test_list_trades_returns_list():
+    app.dependency_overrides[get_db] = _mock_db_empty()
+    client = TestClient(app)
+    response = client.get("/trades")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    app.dependency_overrides.clear()
+
+def test_list_positions_returns_list():
+    app.dependency_overrides[get_db] = _mock_db_empty()
+    client = TestClient(app)
+    response = client.get("/positions")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    app.dependency_overrides.clear()
+```
+
+- [ ] **Step 4: 테스트 통과 확인**
 
 ```bash
-git add api-server/app/routes/
+pytest api-server/tests/test_routes.py -v
+# Expected: 2 passed
+```
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add api-server/app/routes/ api-server/tests/
 git commit -m "feat(api): trades and positions endpoints"
 ```
 
@@ -2015,7 +2179,40 @@ async def broadcast_alert(message: dict) -> None:
             _clients.discard(client)
 ```
 
-- [ ] **Step 2: AlertWorker가 broadcast_alert 호출하도록 연결**
+- [ ] **Step 2: WebSocket 테스트 작성**
+
+```python
+# api-server/tests/test_ws.py
+from fastapi.testclient import TestClient
+from app.main import app
+
+def test_websocket_connection_accepted():
+    client = TestClient(app)
+    with client.websocket_connect("/ws/alerts") as ws:
+        # 연결 수락되면 성공 — WebSocketDisconnect 없이 블록 종료
+        pass
+
+def test_websocket_receives_broadcast():
+    from app.routes.ws_alerts import broadcast_alert
+    import asyncio
+    client = TestClient(app)
+    with client.websocket_connect("/ws/alerts") as ws:
+        asyncio.get_event_loop().run_until_complete(
+            broadcast_alert({"type": "COMPLETE", "arb_id": "abc", "pnl": "1.5"})
+        )
+        data = ws.receive_json()
+        assert data["type"] == "COMPLETE"
+        assert data["arb_id"] == "abc"
+```
+
+- [ ] **Step 3: 테스트 통과 확인**
+
+```bash
+pytest api-server/tests/test_ws.py -v
+# Expected: 2 passed
+```
+
+- [ ] **Step 4: AlertWorker가 broadcast_alert 호출하도록 연결**
 
 AlertWorker와 api-server 간 연결은 공유 DB의 `LISTEN/NOTIFY` 또는 Redis pub/sub로 처리.
 Phase 1에서는 api-server가 `arb_attempts` 테이블을 1초마다 폴링하는 방식으로 단순화:
@@ -2044,10 +2241,10 @@ async def _poll_new_trades():
                 await broadcast_alert({"type": row.state, "arb_id": row.id, "pnl": str(row.net_pnl)})
 ```
 
-- [ ] **Step 3: 커밋**
+- [ ] **Step 5: 커밋**
 
 ```bash
-git add api-server/app/routes/ws_alerts.py
+git add api-server/app/routes/ws_alerts.py api-server/tests/test_ws.py
 git commit -m "feat(api): WebSocket alerts endpoint with DB polling"
 ```
 
@@ -2088,11 +2285,11 @@ export const api = {
 };
 ```
 
-- [ ] **Step 3: 기동 확인**
+- [ ] **Step 3: 빌드 통과 확인**
 
 ```bash
-npm run dev
-# http://localhost:5173 접속 확인
+npm run build
+# Expected: dist/ 생성, 에러 없음
 ```
 
 - [ ] **Step 4: 커밋**
@@ -2174,7 +2371,14 @@ export function TradeTable() {
 }
 ```
 
-- [ ] **Step 3: App에 마운트 + 커밋**
+- [ ] **Step 3: 빌드 통과 확인**
+
+```bash
+npm run build
+# Expected: TypeScript 오류 없음, dist/ 생성
+```
+
+- [ ] **Step 4: 커밋**
 
 ```bash
 git add web-dashboard/src/
@@ -2244,7 +2448,14 @@ export function AlertFeed() {
 }
 ```
 
-- [ ] **Step 3: App에 마운트 + 커밋**
+- [ ] **Step 3: 빌드 통과 확인**
+
+```bash
+npm run build
+# Expected: TypeScript 오류 없음, dist/ 생성
+```
+
+- [ ] **Step 4: 커밋**
 
 ```bash
 git add web-dashboard/src/
