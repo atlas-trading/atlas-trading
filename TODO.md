@@ -1,360 +1,122 @@
-# Atlas Trading - TODO List
+# Atlas Trading — TODO
 
-## 🎯 High Priority
+설계 스펙: [docs/superpowers/specs/2026-05-31-atlas-trading-redesign.md](docs/superpowers/specs/2026-05-31-atlas-trading-redesign.md)
 
-### 1. 백테스트 결과 저장 방식 개선 (Hybrid Approach)
-
-**현재 상태:**
-- PostgreSQL DB에만 저장
-- 웹 대시보드에서 조회 가능
-- 재현성/버전 관리 없음
-
-**목표:**
-DB(빠른 조회) + 파일(재현성/Git 관리) 하이브리드 방식
-
-**구현 사항:**
-
-#### Phase 1: 파일 Export 기능 (30분~1시간)
-- [ ] 백테스트 결과를 JSON으로 export
-  - `results/{date}_{strategy}_{symbol}_{timeframe}.json`
-  - 포함: 전체 결과, trades, equity_curve, parameters
-- [ ] CSV export (거래 내역만)
-  - `results/{date}_{strategy}_{symbol}_trades.csv`
-- [ ] Summary 파일 자동 업데이트
-  - `results/summary.json` - 모든 백테스트 메타데이터
-
-**파일 구조:**
-```
-results/
-├── 2024-02-15_RSI_BTC_1d.json           # 전체 결과
-├── 2024-02-15_RSI_BTC_1d_trades.csv     # 거래 내역
-├── 2024-02-15_MACD_ETH_4h.json
-├── summary.json                          # 전체 요약
-└── .gitignore                            # 큰 파일 제외
-```
-
-#### Phase 2: Auto-Archive & Cleanup (1~2시간)
-- [ ] 백테스트 실행 시 자동으로 파일 저장
-  - `BacktestEngine.run()` 또는 API 엔드포인트에서 호출
-- [ ] DB 자동 정리 스크립트
-  - 30일 이상 된 데이터 → 파일로 export 후 DB에서 삭제
-  - 또는 Archive 테이블로 이동
-- [ ] API 엔드포인트 추가
-  - `GET /api/v1/backtests/{id}/export` - JSON/CSV 다운로드
-  - `POST /api/v1/backtests/import` - 파일에서 DB로 복원
-
-#### Phase 3: Git Integration (선택, 30분)
-- [ ] 중요한 결과만 Git 커밋
-  - 플래그: `is_milestone=True`인 백테스트만
-  - 예: 최종 전략, 논문/보고서용 결과
-- [ ] `.gitignore` 설정
-  - 일반 백테스트 결과는 제외
-  - `results/*.json` 제외
-  - `results/milestones/*.json` 포함
-
-**파일 포맷 예시:**
-```json
-{
-  "metadata": {
-    "id": 14,
-    "strategy_name": "RSI_Mean_Reversion_14_30_70",
-    "symbol": "BTC/USDT",
-    "timeframe": "1d",
-    "start_date": "2024-01-01",
-    "end_date": "2026-02-14",
-    "executed_at": "2024-02-15T10:30:00Z"
-  },
-  "parameters": {
-    "initial_capital": 10000,
-    "commission": 0.001,
-    "use_kelly_sizing": true,
-    "kelly_fraction": 0.5
-  },
-  "results": {
-    "final_capital": 10389.45,
-    "total_return": 3.89,
-    "max_drawdown": -13.67,
-    "sharpe_ratio": 0.234,
-    "total_trades": 11,
-    "win_rate": 63.64
-  },
-  "trades": [...],
-  "equity_curve": [...]
-}
-```
-
-**구현 위치:**
-- `core-platform/app/backtesting/exporter.py` - Export 로직
-- `core-platform/app/backtesting/importer.py` - Import 로직
-- `api-server/app/api/v1/export.py` - Export API
-- `core-platform/scripts/archive_old_backtests.py` - 자동 정리
+PR은 작은 단위로 쪼개어 직접 리뷰 후 머지.
 
 ---
 
-## 🔬 Strategy Development
+## Phase 1: 삼각 차익거래 MVP
 
-### 2. 전략 5~10개 추가 (우선순위 높음)
+### core-platform
 
-**현재:** RSI, Golden Cross (2개)
+- [ ] **PR #1** — 프로젝트 스캐폴딩
+  - `pyproject.toml` (uv, Python 3.12)
+  - 패키지 디렉토리 구조
+  - base 타입 (`Decimal` 기반 금액, 심볼 타입)
 
-**추가할 전략:**
-- [ ] Bollinger Bands Mean Reversion ⭐ (쉬움, 2~3시간)
-- [ ] MACD Crossover ⭐ (쉬움, 2~3시간)
-- [ ] EMA Ribbon ⭐⭐ (중간, 3~4시간)
-- [ ] Breakout (Donchian Channel) ⭐⭐ (중간, 3~4시간)
-- [ ] Volume-Price Trend (VPT) ⭐⭐ (중간, 3~4시간)
-- [ ] Ichimoku Cloud ⭐⭐⭐ (복잡, 5~6시간)
-- [ ] Multi-timeframe Trend Following ⭐⭐⭐ (복잡, 6~8시간)
+- [ ] **PR #2** — EventBus
+  - `events/bus.py`: asyncio pub/sub, `subscribe(event_type)`, `publish(event)`
+  - `events/types.py`: `MarketDataEvent`, `SignalEvent`, `FillEvent`, `TradeResultEvent`
 
-**구현 위치:**
-- `core-platform/app/strategies/bollinger_bands.py`
-- `core-platform/app/strategies/macd.py`
-- ...
+- [ ] **PR #3** — ExchangeInterface + Order 타입
+  - `exchange/base.py`: `ExchangeInterface` abstract
+    - `place_order()`, `cancel_order()`, `get_balance()`, `subscribe_ticker()`
+  - `execution/types.py`: `Order`, `Fill`, `Position`, `Side`, `OrderType`
 
-**테스트:**
-- 각 전략마다 백테스트 실행
-- Monte Carlo 시뮬레이션으로 검증
-- 결과 파일 저장 (`results/`)
+- [ ] **PR #4** — BinanceAdapter (WebSocket)
+  - `exchange/binance.py`: ccxt + WebSocket 티커 구독
+  - WebSocket 재연결 로직
 
----
+- [ ] **PR #5** — MarketDataFeed
+  - `market/types.py`: `Tick`, `OHLCV`, `OrderBook` (normalized)
+  - `market/feed.py`: raw → normalize → `EventBus.publish` + `outbox.put_nowait`
+  - DB는 outbox 경유, 핫 패스에 없음
 
-## 📊 Portfolio Management
+- [ ] **PR #6** — DB 스키마 + 마이그레이션
+  - `raw_ticks`, `ohlcv` (TimescaleDB hypertable)
+  - `orders`, `arb_attempts`, `trade_results`
+  - Alembic 마이그레이션
 
-### 3. 전략 상관관계 분석 (4~6시간)
+- [ ] **PR #7** — OutboxQueue + DBLoggerWorker
+  - `outbox/queue.py`: `asyncio.Queue` 기반 OutboxQueue
+  - `outbox/workers.py`: `DBLoggerWorker` (100ms 배치 bulk insert)
 
-**목표:** 여러 전략을 어떻게 조합할지 결정
+- [ ] **PR #8** — RiskManager
+  - `risk/manager.py`: 동기 `check(signal) → RiskDecision`
+  - Phase 1 체크: 주문 금액 한도, 총 노출액 한도, 연결 상태, Kill Switch
 
-**구현 사항:**
-- [ ] Correlation Matrix 계산
-  - 전략 간 수익률 상관계수
-  - 시각화: Heatmap
-- [ ] Drawdown 동시성 분석
-  - 같은 시기에 손실이 나는지 확인
-- [ ] Diversification Score
-  - 포트폴리오 분산 정도 측정
-- [ ] Sharpe Ratio 비교
+- [ ] **PR #9** — ExecutionEngine 기본 구조
+  - `execution/engine.py`: `on_signal()` → RiskManager → StateMachine 연결
 
-**구현 위치:**
-- `core-platform/app/analytics/correlation.py`
-- `api-server/app/api/v1/correlation.py`
-- `web-dashboard/src/pages/StrategyCorrelation.tsx`
+- [ ] **PR #10** — ArbitrageStateMachine
+  - `execution/state.py`: 상태 전이 (`IDLE` → `COMPLETE` / `UNWIND_COMPLETE`)
+  - 레그별 타임아웃 (LEG1: 500ms, LEG2/3: 300ms)
+  - 실패 핸들러 매핑 + 자동 언윈드
+  - 상태 전이 직후 `outbox.put_nowait()`
 
-**API 엔드포인트:**
-- `GET /api/v1/analytics/correlation` - 전략 간 상관관계
-- `GET /api/v1/analytics/diversification` - 분산 점수
+- [ ] **PR #11** — TriangularArbitrageStrategy: 기회 탐지
+  - `strategy/arbitrage/triangular.py`
+  - Bellman-Ford로 음수 사이클 탐지
+  - 수수료 반영 스프레드 계산
 
----
+- [ ] **PR #12** — TriangularArbitrageStrategy: 시그널 생성
+  - `SignalEvent` 발행 (레그 경로, 예상 수익, 주문 크기 포함)
 
-### 4. 포트폴리오 최적화 & 리밸런싱 (1~2일)
+- [ ] **PR #13** — AlertWorker
+  - `outbox/workers.py`: `AlertWorker` — Discord Webhook
+  - `TRADE_COMPLETE`, `UNWIND_COMPLETE`, `FAILED` 이벤트 시 알림
 
-**Kelly Criterion 확장:**
-- [ ] Multi-strategy Kelly
-  - 여러 전략에 자본을 어떻게 배분할지
-  - Mean-Variance Optimization과 결합
-- [ ] Fractional Kelly
-  - Full Kelly는 너무 공격적 → 1/2 Kelly, 1/4 Kelly
+- [ ] **PR #14** — LiveRunner + 통합 테스트
+  - `live/runner.py`: 모든 컴포넌트 조립 + 시작/종료 관리
+  - 통합 테스트: mock exchange로 전체 흐름 검증
 
-**리밸런싱 알고리즘:**
-- [ ] Time-based (매주/매월 고정)
-- [ ] Threshold-based (비중 5% 이상 변동 시)
-- [ ] Kelly-adjusted (성과에 따라 동적)
+### api-server
 
-**구현 위치:**
-- `core-platform/app/portfolio/optimizer.py`
-- `core-platform/app/portfolio/rebalancer.py`
-- `web-dashboard/src/pages/Portfolio.tsx`
+- [ ] **PR #15** — FastAPI 스캐폴딩
+  - `pyproject.toml`, PostgreSQL 연결 (SQLAlchemy async)
+  - Health check 엔드포인트
 
-**API 엔드포인트:**
-- `POST /api/v1/portfolio/optimize` - 최적 자본 배분 계산
-- `POST /api/v1/portfolio/rebalance` - 리밸런싱 시뮬레이션
+- [ ] **PR #16** — 어드민 API
+  - `GET /trades` — 거래내역
+  - `GET /positions` — 현재 오픈 포지션
+  - `GET /risk/summary` — RiskManager 상태
+  - `GET /strategies`, `POST /strategies/{id}/toggle`
 
----
+- [ ] **PR #17** — WebSocket 알림
+  - `WS /ws/alerts` — AlertWorker 아웃박스 구독 → 클라이언트 push
 
-## 💰 Live Trading
+### web-dashboard
 
-### 5. 실거래 API 연동 (3~4일)
+- [ ] **PR #18** — Vite + React 스캐폴딩
+  - TypeScript, TailwindCSS
+  - 라우팅 구조
 
-**단계별 접근:**
-1. **Read-only API** (1일)
-   - [ ] 바이낸스 API 클라이언트
-   - [ ] 바이비트 API 클라이언트
-   - [ ] 잔고 조회
-   - [ ] 포지션 조회
-   - [ ] Balance & Portfolio 페이지 실제 데이터 표시
+- [ ] **PR #19** — 거래내역 테이블
+  - `/trades` API 연동
+  - 페이지네이션, 상태별 필터
 
-2. **Paper Trading** (1~2일)
-   - [ ] 모의 주문 실행 (실제 돈 안 씀)
-   - [ ] 포지션 추적
-   - [ ] PnL 계산
-   - [ ] 주문 히스토리
-
-3. **Live Trading** (1일)
-   - [ ] 실제 주문 실행
-   - [ ] Risk Management
-     - 최대 손실 제한
-     - 일일 거래 횟수 제한
-     - 긴급 정지 (Kill Switch)
-   - [ ] 알림 (Telegram/Discord)
-
-**구현 위치:**
-- `core-platform/app/exchange/binance.py`
-- `core-platform/app/exchange/bybit.py`
-- `core-platform/app/trading/executor.py`
-- `core-platform/app/trading/monitor.py`
-- `web-dashboard/src/pages/Trading/Balance.tsx`
-
-**Safety First:**
-- [ ] 환경 변수로 API 키 관리 (.env)
-- [ ] Read-only API 키로 테스트
-- [ ] Paper Trading으로 충분히 검증
-- [ ] 소액으로 시작 (초기 $100~$500)
+- [ ] **PR #20** — 실시간 알림 피드
+  - `/ws/alerts` WebSocket 연결
+  - 토스트 / 피드 UI
 
 ---
 
-## 🖥️ Infrastructure
+## Phase 2: 확장
 
-### 6. 홈서버 구축 (1~2일)
-
-**목표:** 24/7 자동 실행 환경
-
-**구성:**
-- [x] ArgoCD GitOps 파이프라인 (2026-02-18 완료)
-  - k3d 클러스터 (Mac Mini M1, arm64)
-  - ArgoCD v3.3.0 설치, Application CRD 등록
-  - `cluster-config/` 경로, `directory.recurse: true`
-  - `.argocdignore`: scripts/, k3s/, manifests/, *.md, argocd/, base/ 제외
-  - GitHub Actions → ghcr.io → ArgoCD 자동 CD
-  - CI 루프 방지: `github.actor != 'github-actions[bot]'` + `[skip ci]`
-- [x] GitHub Actions CI/CD (2026-02-18 완료)
-  - 단일 job `build-and-deploy`로 통합
-  - multi-platform 빌드: `linux/amd64,linux/arm64` (Mac Mini M1 대응)
-  - Discord 배포 알림 (`DISCORD_WEBHOOK` secret)
-  - ghcr.io private registry pull: k3s `registries.yaml` + imagePullSecrets
-- [x] Blue-Green 배포 (2026-02-18 완료)
-  - api-server-blue/green, web-dashboard-blue/green
-  - ghcr.io 이미지: `ghcr.io/atlas-trading/atlas-trading/{service}:main-{sha}`
-  - imagePullSecrets: `ghcr-secret` (PAT 기반)
-- [x] Sealed Secrets controller v0.27.0 설치 (2026-02-18)
-  - CRD: `sealedsecrets.bitnami.com`
-  - Exchange API Key 관리 UI (`Admin > API Keys`)
-  - k8s ServiceAccount + Role (secrets CRUD) + RoleBinding
-- [x] macOS LaunchAgents 영구 port-forward (2026-02-18)
-  - ArgoCD: localhost:8081
-  - Grafana: localhost:3000
-  - ingress-nginx: localhost:32660
-- [x] 모니터링 (Grafana + Prometheus) (2026-02-18)
-  - Tailscale 네트워크로 접근: http://100.110.86.86:31177
-- [ ] 백업 자동화 (DB + 파일)
-
-**현재 알려진 이슈:**
-- ArgoCD가 blue-green deployment에 `selfHeal`로 ghcr.io 이미지 업데이트 시도 중
-  - 구 pod들(`atlas-trading/...:blue` 로컬 이미지)은 여전히 Running
-  - 새 pod들(ghcr.io 이미지)은 CI multi-platform 빌드 완료 후 정상화 예정
-- `base/` 디렉토리 리소스(configmap, postgres, namespace, secret)는 ArgoCD 관리 제외
-  - ArgoCD `.argocdignore`에서 `base/` 전체 제외
-  - 수동 `kubectl apply` 로 관리
-
-**Exchange API Key 관리:**
-- Secret 이름: `exchange-binance-mainnet`, `exchange-binance-testnet`, `exchange-bybit-mainnet`, `exchange-bybit-testnet`
-- Admin > API Keys 페이지에서 KV 업로드
-- 값은 서버에서 base64 인코딩, UI에는 키 이름만 표시
-
-**구현 위치:**
-- `cluster-config/` - k8s 매니페스트 (ArgoCD 관리)
-- `cluster-config/blue-green/` - Deployment, Service, RBAC
-- `cluster-config/argocd/` - ArgoCD Application (.argocdignore로 제외)
-- `cluster-config/base/` - 수동 관리 리소스 (.argocdignore로 제외)
-- `cluster-config/scripts/launchagents/` - macOS 영구 port-forward
+- [ ] BybitAdapter (`exchange/bybit.py`)
+- [ ] BacktestEngine — `HistoricalFeed` (raw_ticks 재생)
+- [ ] 펀딩피 전략 (`strategy/funding_rate/`)
+- [ ] 자본 사전 배치 기반 크로스 익스체인지 아비트라지
+- [ ] 데이터 분석 / DW 연동
 
 ---
 
-## 📈 Analysis & Monitoring
+## 인프라 (기존 완료)
 
-### 7. 고급 분석 기능 (선택)
-
-- [ ] Regime Analysis (시장 상황별 성과)
-- [ ] Walk-Forward Analysis (시간에 따른 안정성)
-- [ ] Parameter Sensitivity (파라미터 민감도)
-- [ ] Market Analysis (BTC/ETH 가격, 변동성)
-- [ ] Risk Monitoring (VaR, CVaR, 집중도)
-
----
-
-## 🎨 UI/UX Improvements
-
-### 8. 어드민 대시보드 개선
-
-- [ ] Balance & Portfolio 페이지 구현
-- [ ] Strategy Management 페이지
-  - 전략 목록
-  - 파라미터 편집 UI
-  - 활성화/비활성화 토글
-- [ ] Live Performance 대시보드
-- [ ] Market Analysis 차트
-- [ ] 모바일 반응형 최적화
-
----
-
-## 📝 Documentation
-
-### 9. 문서화
-
-- [ ] README.md 작성
-  - 프로젝트 소개
-  - 설치 방법
-  - 사용 방법
-- [ ] API 문서 (Swagger/OpenAPI)
-- [ ] 전략 설명서
-  - 각 전략의 로직
-  - 파라미터 설명
-  - 백테스트 결과
-- [ ] 아키텍처 문서
-  - 시스템 구조
-  - 데이터 흐름
-  - 배포 가이드
-
----
-
-## ✅ Completed
-
-- [x] Kelly Criterion position sizing
-- [x] Monte Carlo simulation with dynamic Kelly
-- [x] Multi-exchange support (Binance, Bybit, OKX, etc.)
-- [x] Admin dashboard with sidebar navigation
-- [x] Dark/light mode toggle
-- [x] Basic backtest infrastructure
-- [x] Cost stress test
-- [x] Profit concentration analysis
-- [x] Rolling Sharpe ratio
-- [x] Holding time vs PnL analysis
-- [x] Slight Edge visualization
-- [x] ArgoCD GitOps (k3d, directory.recurse, .argocdignore)
-- [x] GitHub Actions CI/CD 단일 job 통합 + multi-platform (amd64+arm64)
-- [x] Discord 배포 알림
-- [x] Environment 탭 → System/Infrastructure/Deployment 별도 sidebar
-- [x] TSDB localStorage (최대 100개, FIFO) - Infrastructure 차트
-- [x] Deployment History 실제 히스토리 (TSDB 기반)
-- [x] Sealed Secrets controller 설치
-- [x] Exchange API Key 관리 UI (Admin > API Keys)
-- [x] k8s Secret CRUD API (`/api/v1/k8s-secrets`)
-- [x] macOS LaunchAgents 영구 port-forward (ArgoCD/Grafana/ingress)
-
----
-
-## 📅 Suggested Timeline
-
-**Week 1-2:** 전략 5~7개 추가
-**Week 3:** 백테스트 결과 export/import + 상관관계 분석
-**Week 4:** 포트폴리오 최적화 & 리밸런싱
-**Week 5-6:** Paper Trading 구축
-**Week 7:** 홈서버 구축 & 배포
-**Week 8+:** Live Trading 시작 (소액)
-
----
-
-## 💡 Notes
-
-- 전략 개발과 백테스트가 가장 중요 (먼저 해야 다른 기능이 의미 있음)
-- Paper Trading으로 충분히 검증 후 Live Trading
-- 리스크 관리 철저히 (최대 손실, 일일 한도 등)
-- 정기적으로 백테스트 재실행 (시장 변화 반영)
+- [x] k3d + ArgoCD GitOps 파이프라인
+- [x] GitHub Actions CI/CD (linux/arm64, ghcr.io)
+- [x] Blue-Green 배포
+- [x] Sealed Secrets
+- [x] Prometheus + Grafana 모니터링
+- [x] macOS LaunchAgents 영구 port-forward
