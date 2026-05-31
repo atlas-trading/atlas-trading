@@ -86,3 +86,7 @@ core-platform/core_platform.egg-info/
 web-dashboard/.vite/
 web-dashboard/node_modules/
 web-dashboard/dist/
+
+# OMC state
+.omc/
+*/.omc/
