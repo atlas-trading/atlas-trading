@@ -1,7 +1,6 @@
 from enum import StrEnum
 
 
-class Asset(StrEnum):
+class Ticker(StrEnum):
     BTC = "BTC"
     ETH = "ETH"
-    USDT = "USDT"

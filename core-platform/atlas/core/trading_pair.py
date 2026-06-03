@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from atlas.core.asset import Asset
+from atlas.core.ticker import Ticker
+from atlas.core.quote import Quote
 
 
 @dataclass(frozen=True)
 class TradingPair:
-    base: Asset   # Asset.BTC
-    quote: Asset  # Asset.USDT
+    ticker: Ticker  # Ticker.BTC
+    quote: Quote    # Quote.USDT
