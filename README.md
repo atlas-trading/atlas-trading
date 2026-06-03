@@ -25,6 +25,37 @@ atlas-trading/
 - **Backtest = Live**: 이벤트 소스만 다를 뿐 전략과 실행 엔진은 동일한 코드
 - **데이터 불변성**: raw 데이터는 append-only. normalized는 raw에서 파생
 
+## 삼각 차익거래 StateMachine
+
+삼각 차익거래(A→B→C→A) 실행 흐름. 각 레그는 타임아웃 내 미체결 시 자동 청산(Unwind).
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+
+    IDLE --> LEG1_PENDING : 차익 신호 수신
+
+    LEG1_PENDING --> LEG1_FILLED : 체결
+    LEG1_PENDING --> IDLE : 타임아웃(500ms) / 거부
+
+    LEG1_FILLED --> LEG2_PENDING : LEG2 주문 전송
+
+    LEG2_PENDING --> LEG2_FILLED : 체결
+    LEG2_PENDING --> UNWINDING : 타임아웃(300ms) / 거부\n→ LEG1 청산
+
+    LEG2_FILLED --> LEG3_PENDING : LEG3 주문 전송
+
+    LEG3_PENDING --> COMPLETE : 체결
+    LEG3_PENDING --> UNWINDING : 타임아웃(300ms) / 거부\n→ LEG2+LEG1 순차 청산
+
+    UNWINDING --> UNWIND_COMPLETE : 청산 완료
+    COMPLETE --> IDLE : 다음 사이클 대기
+    UNWIND_COMPLETE --> IDLE : 다음 사이클 대기
+
+    note right of LEG1_PENDING : RiskManager 통과 후 주문
+    note right of UNWINDING : 남은 레그를 역순으로 청산\n실패 시에도 IDLE 복귀
+```
+
 ## 전략 로드맵
 
 | 단계 | 전략 | 상태 |
