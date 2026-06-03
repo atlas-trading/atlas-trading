@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 
+from atlas.execution.order_status import OrderStatus
+
 
 @dataclass(frozen=True, kw_only=True)
 class OrderResult:
     id: str
-    status: str | None = None
+    status: OrderStatus | None = None
     symbol: str | None = None
     type: str | None = None
     side: str | None = None

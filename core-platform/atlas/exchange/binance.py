@@ -1,5 +1,4 @@
 import asyncio
-import dataclasses
 from decimal import Decimal
 
 import ccxt.pro as ccxtpro
@@ -11,14 +10,6 @@ from atlas.exchange.order_result import OrderResult
 from atlas.execution.balance import Balance
 from atlas.execution.order import Order
 from atlas.execution.order_status import OrderStatus
-
-_CCXT_STATUS_MAP: dict[str, OrderStatus] = {
-    "open": OrderStatus.PENDING,
-    "closed": OrderStatus.FILLED,
-    "canceled": OrderStatus.CANCELLED,
-    "expired": OrderStatus.CANCELLED,
-    "rejected": OrderStatus.REJECTED,
-}
 
 
 class BinanceAdapter(ExchangeInterface):
@@ -60,9 +51,19 @@ class BinanceAdapter(ExchangeInterface):
             amount=float(order.quantity),
             price=float(order.price) if order.price else None,
         )
+
+        ccxt_status = raw.get("status", "")
         order_result = OrderResult(
             id=raw["id"],
-            status=raw.get("status"),
+            status=(
+                OrderStatus.FILLED
+                if ccxt_status == "closed"
+                else OrderStatus.CANCELLED
+                if ccxt_status in ("canceled", "expired")
+                else OrderStatus.REJECTED
+                if ccxt_status == "rejected"
+                else OrderStatus.PENDING
+            ),
             symbol=raw.get("symbol"),
             type=raw.get("type"),
             side=raw.get("side"),
@@ -80,8 +81,17 @@ class BinanceAdapter(ExchangeInterface):
             reduce_only=raw.get("reduceOnly"),
         )
 
-        new_status = _CCXT_STATUS_MAP.get(order_result.status or "", OrderStatus.PENDING)
-        return dataclasses.replace(order, status=new_status)
+        return Order(
+            id=order.id,
+            exchange=order.exchange,
+            trading_pair=order.trading_pair,
+            side=order.side,
+            order_type=order.order_type,
+            quantity=order.quantity,
+            price=order.price,
+            status=order_result.status or OrderStatus.PENDING,
+            created_at=order.created_at,
+        )
 
     async def cancel_order(self, order: Order) -> None:
         await self._exchange.cancel_order(order.id, to_ccxt_symbol(order.trading_pair))
