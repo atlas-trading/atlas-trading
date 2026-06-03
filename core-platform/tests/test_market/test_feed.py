@@ -28,8 +28,8 @@ _ETH_RAW = {
 @pytest.mark.asyncio
 async def test_on_tickers_publishes_market_data_event():
     bus = EventBus()
-    outbox = asyncio.Queue()
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, outbox=outbox)
+    tick_queue = asyncio.Queue()
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
 
     received = []
 
@@ -50,15 +50,15 @@ async def test_on_tickers_publishes_market_data_event():
 
 
 @pytest.mark.asyncio
-async def test_on_tickers_puts_tick_to_outbox():
+async def test_on_tickers_puts_tick_to_queue():
     bus = EventBus()
-    outbox = asyncio.Queue()
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, outbox=outbox)
+    tick_queue = asyncio.Queue()
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
 
     await feed.on_tickers({"BTC/USDT": _BTC_RAW})
 
-    assert outbox.qsize() == 1
-    tick = outbox.get_nowait()
+    assert tick_queue.qsize() == 1
+    tick = tick_queue.get_nowait()
     assert isinstance(tick, Tick)
     assert tick.timestamp == 1717459200000
     assert tick.volume == Decimal("1500.0")
@@ -67,9 +67,9 @@ async def test_on_tickers_puts_tick_to_outbox():
 @pytest.mark.asyncio
 async def test_on_tickers_multiple_symbols():
     bus = EventBus()
-    outbox = asyncio.Queue()
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, outbox=outbox)
+    tick_queue = asyncio.Queue()
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
 
     await feed.on_tickers({"BTC/USDT": _BTC_RAW, "ETH/USDT": _ETH_RAW})
 
-    assert outbox.qsize() == 2
+    assert tick_queue.qsize() == 2

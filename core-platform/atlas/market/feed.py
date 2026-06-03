@@ -10,10 +10,10 @@ from atlas.market.tick import Tick
 
 
 class MarketDataFeed:
-    def __init__(self, exchange: Exchange, bus: EventBus, outbox: asyncio.Queue) -> None:
+    def __init__(self, exchange: Exchange, bus: EventBus, tick_queue: asyncio.Queue) -> None:
         self._exchange = exchange
         self._bus = bus
-        self._outbox = outbox
+        self._tick_queue = tick_queue
 
     async def on_tickers(self, tickers: dict[str, Any]) -> None:
         for symbol, raw in tickers.items():
@@ -28,7 +28,10 @@ class MarketDataFeed:
                     last=tick.last,
                 )
             )
-            self._outbox.put_nowait(tick)
+            self._produce_tick(tick)
+
+    def _produce_tick(self, tick: Tick) -> None:
+        self._tick_queue.put_nowait(tick)
 
     def _to_tick(self, symbol: str, raw: dict[str, Any]) -> Tick:
         return Tick(
