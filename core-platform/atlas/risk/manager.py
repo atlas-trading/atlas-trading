@@ -18,13 +18,18 @@ class RiskManager:
     def check(self, signal: ArbSignal) -> str:
         if self._kill_switch:
             return RiskDecision.REJECTED
+
         if not self._connected:
             return RiskDecision.REJECTED
+
         quantities = [signal.leg1_quantity, signal.leg2_quantity, signal.leg3_quantity]
+
         if any(q > self._max_order_size for q in quantities):
             return RiskDecision.REJECTED
+
         if sum(quantities) > self._max_exposure:
             return RiskDecision.REJECTED
+
         return RiskDecision.APPROVED
 
     def set_kill_switch(self, enabled: bool) -> None:
