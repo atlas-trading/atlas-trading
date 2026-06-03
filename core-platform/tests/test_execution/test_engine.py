@@ -1,10 +1,12 @@
 from decimal import Decimal
 
+from atlas.core.exchange import Exchange
 from atlas.core.quote import Quote
 from atlas.core.ticker import Ticker
 from atlas.core.trading_pair import TradingPair
 from atlas.execution.arb_signal import ArbSignal
 from atlas.execution.engine import ExecutionEngine
+from atlas.execution.side import Side
 from atlas.risk.manager import RiskManager
 
 _PAIR = TradingPair(ticker=Ticker.BTC, quote=Quote.USDT)
@@ -21,11 +23,15 @@ class _FakeStateMachine:
 def _make_signal() -> ArbSignal:
     qty = Decimal("0.01")
     return ArbSignal(
+        exchange=Exchange.BINANCE,
         leg1_pair=_PAIR,
+        leg1_side=Side.BUY,
         leg1_quantity=qty,
         leg2_pair=_PAIR,
+        leg2_side=Side.BUY,
         leg2_quantity=qty,
         leg3_pair=_PAIR,
+        leg3_side=Side.SELL,
         leg3_quantity=qty,
         expected_profit=Decimal("5"),
     )
