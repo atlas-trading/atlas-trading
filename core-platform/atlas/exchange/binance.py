@@ -32,6 +32,7 @@ class BinanceAdapter(ExchangeInterface):
         )
         if testnet:
             self._exchange.set_sandbox_mode(True)
+
         self._running = False
 
     async def subscribe_ticker(
@@ -39,6 +40,7 @@ class BinanceAdapter(ExchangeInterface):
     ) -> None:
         symbols: list[str] = [to_ccxt_symbol(pair) for pair in trading_pairs]
         self._running = True
+
         while self._running:
             try:
                 tickers = await self._exchange.watch_tickers(symbols)
@@ -51,7 +53,6 @@ class BinanceAdapter(ExchangeInterface):
 
     async def place_order(self, order: Order) -> Order:
         symbol: str = to_ccxt_symbol(order.trading_pair)
-
         raw = await self._exchange.create_order(
             symbol=symbol,
             type=order.order_type.value,
@@ -59,7 +60,6 @@ class BinanceAdapter(ExchangeInterface):
             amount=float(order.quantity),
             price=float(order.price) if order.price else None,
         )
-
         order_result = OrderResult(
             id=raw["id"],
             status=raw.get("status"),
@@ -88,6 +88,7 @@ class BinanceAdapter(ExchangeInterface):
 
     async def get_balance(self) -> Balance:
         raw = await self._exchange.fetch_balance()
+
         return Balance(
             usdt=Decimal(str(raw.get("USDT", {}).get("free", 0))),
             btc=Decimal(str(raw.get("BTC", {}).get("free", 0))),
@@ -103,4 +104,5 @@ class BinanceAdapter(ExchangeInterface):
 
     async def close(self) -> None:
         self._running = False
+
         await self._exchange.close()
