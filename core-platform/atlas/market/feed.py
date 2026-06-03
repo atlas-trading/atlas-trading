@@ -1,11 +1,11 @@
 import asyncio
 from decimal import Decimal
+from typing import Any
 
 from atlas.core.exchange import Exchange
 from atlas.core.parsers import parse_trading_pair
 from atlas.events.bus import EventBus
 from atlas.events.market_data_event import MarketDataEvent
-from atlas.exchange.ccxt_ticker import CcxtTicker
 from atlas.market.tick import Tick
 
 
@@ -15,9 +15,9 @@ class MarketDataFeed:
         self._bus = bus
         self._outbox = outbox
 
-    async def on_tickers(self, tickers: dict[str, CcxtTicker]) -> None:
-        for symbol, ticker in tickers.items():
-            tick = self._to_tick(symbol, ticker)
+    async def on_tickers(self, tickers: dict[str, Any]) -> None:
+        for symbol, raw in tickers.items():
+            tick = self._to_tick(symbol, raw)
 
             await self._bus.publish(
                 MarketDataEvent(
@@ -30,13 +30,13 @@ class MarketDataFeed:
             )
             self._outbox.put_nowait(tick)
 
-    def _to_tick(self, symbol: str, ticker: CcxtTicker) -> Tick:
+    def _to_tick(self, symbol: str, raw: dict[str, Any]) -> Tick:
         return Tick(
             exchange=self._exchange,
             trading_pair=parse_trading_pair(symbol),
-            timestamp=ticker.timestamp or 0,
-            bid=Decimal(str(ticker.bid or 0)),
-            ask=Decimal(str(ticker.ask or 0)),
-            last=Decimal(str(ticker.last or 0)),
-            volume=Decimal(str(ticker.base_volume or 0)),
+            timestamp=raw.get("timestamp") or 0,
+            bid=Decimal(str(raw.get("bid") or 0)),
+            ask=Decimal(str(raw.get("ask") or 0)),
+            last=Decimal(str(raw.get("last") or 0)),
+            volume=Decimal(str(raw.get("baseVolume") or 0)),
         )

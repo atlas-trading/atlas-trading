@@ -2,12 +2,11 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Coroutine
 
 from atlas.core.trading_pair import TradingPair
-from atlas.exchange.ccxt_ticker import CcxtTicker
 from atlas.exchange.order_result import OrderResult
 from atlas.execution.balance import Balance
 from atlas.execution.order import Order
 
-TickerCallback = Callable[[dict[str, CcxtTicker]], Coroutine[Any, Any, None]]
+TickerCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
 
 
 class ExchangeInterface(ABC):

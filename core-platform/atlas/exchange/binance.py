@@ -1,11 +1,11 @@
 import asyncio
 from decimal import Decimal
+from typing import Any
 
 import ccxt.pro as ccxtpro
 
 from atlas.core.parsers import to_ccxt_symbol
 from atlas.core.trading_pair import TradingPair
-from atlas.exchange.ccxt_ticker import CcxtTicker
 from atlas.exchange.exchange_interface import ExchangeInterface, TickerCallback
 from atlas.exchange.order_result import OrderResult
 from atlas.execution.balance import Balance
@@ -48,33 +48,8 @@ class BinanceAdapter(ExchangeInterface):
             except Exception:
                 await asyncio.sleep(1)
 
-    async def _on_ticker(self, tickers: dict, callback: TickerCallback) -> None:
-        parsed: dict[str, CcxtTicker] = {
-            symbol: CcxtTicker(
-                symbol=raw.get("symbol"),
-                timestamp=raw.get("timestamp"),
-                datetime=raw.get("datetime"),
-                high=raw.get("high"),
-                low=raw.get("low"),
-                bid=raw.get("bid"),
-                bid_volume=raw.get("bidVolume"),
-                ask=raw.get("ask"),
-                ask_volume=raw.get("askVolume"),
-                vwap=raw.get("vwap"),
-                open=raw.get("open"),
-                close=raw.get("close"),
-                last=raw.get("last"),
-                previous_close=raw.get("previousClose"),
-                change=raw.get("change"),
-                percentage=raw.get("percentage"),
-                average=raw.get("average"),
-                base_volume=raw.get("baseVolume"),
-                quote_volume=raw.get("quoteVolume"),
-            )
-            for symbol, raw in tickers.items()
-        }
-
-        await callback(parsed)
+    async def _on_ticker(self, tickers: dict[str, Any], callback: TickerCallback) -> None:
+        await callback(tickers)
 
     async def place_order(self, order: Order) -> OrderResult:
         symbol: str = to_ccxt_symbol(order.trading_pair)
