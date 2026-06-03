@@ -38,8 +38,7 @@ async def test_on_ticker_calls_callback():
 async def test_health_check_testnet():
     adapter = BinanceAdapter(api_key=_TESTNET_KEY, api_secret=_TESTNET_SECRET, testnet=True)
     try:
-        result: bool = await adapter.health_check()
-        assert result is True
+        assert await adapter.health_check() is True
     finally:
         await adapter.close()
 
@@ -50,7 +49,6 @@ async def test_health_check_testnet():
 async def test_get_balance_testnet():
     adapter = BinanceAdapter(api_key=_TESTNET_KEY, api_secret=_TESTNET_SECRET, testnet=True)
     try:
-        balance: dict = await adapter.get_balance()
-        assert isinstance(balance, dict)
+        assert isinstance(await adapter.get_balance(), dict)
     finally:
         await adapter.close()
