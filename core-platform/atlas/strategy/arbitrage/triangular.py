@@ -33,7 +33,7 @@ class TriangularArbitrageStrategy:
         self,
         exchange: Exchange,
         order_quantity: Decimal,
-        min_profit: Decimal = Decimal("0.002"),
+        min_profit: Decimal = Decimal("0.005"),
     ) -> None:
         self._exchange = exchange
         self._order_quantity = order_quantity
