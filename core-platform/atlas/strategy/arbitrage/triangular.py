@@ -68,8 +68,9 @@ class TriangularArbitrageStrategy:
                 pair = parse_trading_pair(symbol)
             except (ValueError, KeyError):
                 continue
-            bid = data.get("bid") or 0
-            ask = data.get("ask") or 0
+            last = data.get("last") or 0
+            bid = data.get("bid") or last
+            ask = data.get("ask") or last
             if bid and ask:
                 self._prices[pair] = (Decimal(str(bid)), Decimal(str(ask)))
 
