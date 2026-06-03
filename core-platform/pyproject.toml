@@ -27,6 +27,7 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["integration: requires live exchange connectivity"]
 
 [tool.ruff]
 line-length = 100
