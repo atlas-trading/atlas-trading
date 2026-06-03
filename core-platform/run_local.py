@@ -76,7 +76,7 @@ async def main() -> None:
     print(
         f"[CONFIG] qty={ORDER_QUANTITY} min_profit={float(MIN_PROFIT) * 100:.1f}% verbose={VERBOSE}"
     )
-    print(f"[PAIRS] {[str(p) for p in pairs]}")
+    print(f"[PAIRS] {[f'{p.ticker}/{p.quote}' for p in pairs]}")
     print("─" * 60)
 
     try:
