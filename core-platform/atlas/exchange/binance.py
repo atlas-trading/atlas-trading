@@ -51,6 +51,7 @@ class BinanceAdapter(ExchangeInterface):
 
     async def place_order(self, order: Order) -> Order:
         symbol: str = to_ccxt_symbol(order.trading_pair)
+
         raw = await self._exchange.create_order(
             symbol=symbol,
             type=order.order_type.value,
@@ -58,6 +59,7 @@ class BinanceAdapter(ExchangeInterface):
             amount=float(order.quantity),
             price=float(order.price) if order.price else None,
         )
+
         order_result = OrderResult(
             id=raw["id"],
             status=raw.get("status"),
@@ -77,6 +79,7 @@ class BinanceAdapter(ExchangeInterface):
             post_only=raw.get("postOnly"),
             reduce_only=raw.get("reduceOnly"),
         )
+
         new_status = _CCXT_STATUS_MAP.get(order_result.status or "", OrderStatus.PENDING)
         return dataclasses.replace(order, status=new_status)
 
