@@ -34,51 +34,76 @@ class ArbitrageStateMachine:
         leg1_timeout: float = _LEG1_TIMEOUT,
         leg2_timeout: float = _LEG2_TIMEOUT,
         leg3_timeout: float = _LEG3_TIMEOUT,
+        verbose: bool = False,
     ) -> None:
         self._exchange = exchange
         self._leg1_timeout = leg1_timeout
         self._leg2_timeout = leg2_timeout
         self._leg3_timeout = leg3_timeout
+        self._verbose = verbose
         self.state = State.IDLE
+
+    def _log(self, msg: str) -> None:
+        if self._verbose:
+            print(msg)
 
     async def start(self, signal: ArbSignal) -> None:
         if self.state != State.IDLE:
             return
 
         self.state = State.LEG1_PENDING
+        self._log(
+            f"[LEG1] {signal.leg1_side.upper()} {signal.leg1_pair} qty={signal.leg1_quantity}"
+        )
         leg1 = await self._place(
             signal, signal.leg1_pair, signal.leg1_side, signal.leg1_quantity, self._leg1_timeout
         )
         if leg1 is None:
+            self._log("[LEG1] TIMEOUT → IDLE")
             self.state = State.IDLE
             return
+        self._log(f"[LEG1] FILLED avg={leg1.average}")
 
         self.state = State.LEG1_FILLED
         self.state = State.LEG2_PENDING
+        self._log(
+            f"[LEG2] {signal.leg2_side.upper()} {signal.leg2_pair} qty={signal.leg2_quantity}"
+        )
         leg2 = await self._place(
             signal, signal.leg2_pair, signal.leg2_side, signal.leg2_quantity, self._leg2_timeout
         )
         if leg2 is None:
+            self._log("[LEG2] TIMEOUT → UNWIND")
             self.state = State.UNWINDING
             await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
             self.state = State.UNWIND_COMPLETE
             self.state = State.IDLE
             return
+        self._log(f"[LEG2] FILLED avg={leg2.average}")
 
         self.state = State.LEG2_FILLED
         self.state = State.LEG3_PENDING
+        self._log(
+            f"[LEG3] {signal.leg3_side.upper()} {signal.leg3_pair} qty={signal.leg3_quantity}"
+        )
         leg3 = await self._place(
             signal, signal.leg3_pair, signal.leg3_side, signal.leg3_quantity, self._leg3_timeout
         )
         if leg3 is None:
+            self._log("[LEG3] TIMEOUT → UNWIND")
             self.state = State.UNWINDING
             await self._unwind(signal, signal.leg2_pair, signal.leg2_side, leg2)
             await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
             self.state = State.UNWIND_COMPLETE
             self.state = State.IDLE
             return
+        self._log(f"[LEG3] FILLED avg={leg3.average}")
 
         self.state = State.COMPLETE
+        self._log(
+            f"[COMPLETE] expected_profit={signal.expected_profit:.6f}"
+            f" ({float(signal.expected_profit / signal.leg1_quantity) * 100:.3f}%)"
+        )
         self.state = State.IDLE
 
     async def _place(
