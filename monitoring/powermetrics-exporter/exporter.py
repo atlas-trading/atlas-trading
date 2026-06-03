@@ -14,7 +14,7 @@ import re
 import time
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import Dict, Optional
+from typing import Dict
 
 
 class PowerMetrics:
@@ -30,34 +30,38 @@ class PowerMetrics:
         metrics = {}
 
         # CPU Temperature (e.g., "CPU die temperature: 45.5 C")
-        temp_match = re.search(r'CPU die temperature:\s+([\d.]+)\s+C', output)
+        temp_match = re.search(r"CPU die temperature:\s+([\d.]+)\s+C", output)
         if temp_match:
-            metrics['cpu_temperature_celsius'] = float(temp_match.group(1))
+            metrics["cpu_temperature_celsius"] = float(temp_match.group(1))
 
         # GPU Temperature
-        gpu_temp_match = re.search(r'GPU die temperature:\s+([\d.]+)\s+C', output)
+        gpu_temp_match = re.search(r"GPU die temperature:\s+([\d.]+)\s+C", output)
         if gpu_temp_match:
-            metrics['gpu_temperature_celsius'] = float(gpu_temp_match.group(1))
+            metrics["gpu_temperature_celsius"] = float(gpu_temp_match.group(1))
 
         # CPU Power (e.g., "CPU Power: 1234 mW")
-        cpu_power_match = re.search(r'CPU Power:\s+([\d.]+)\s+mW', output)
+        cpu_power_match = re.search(r"CPU Power:\s+([\d.]+)\s+mW", output)
         if cpu_power_match:
-            metrics['cpu_power_milliwatts'] = float(cpu_power_match.group(1))
+            metrics["cpu_power_milliwatts"] = float(cpu_power_match.group(1))
 
         # GPU Power
-        gpu_power_match = re.search(r'GPU Power:\s+([\d.]+)\s+mW', output)
+        gpu_power_match = re.search(r"GPU Power:\s+([\d.]+)\s+mW", output)
         if gpu_power_match:
-            metrics['gpu_power_milliwatts'] = float(gpu_power_match.group(1))
+            metrics["gpu_power_milliwatts"] = float(gpu_power_match.group(1))
 
         # System Power
-        sys_power_match = re.search(r'Combined Power \(CPU \+ GPU \+ ANE\):\s+([\d.]+)\s+mW', output)
+        sys_power_match = re.search(
+            r"Combined Power \(CPU \+ GPU \+ ANE\):\s+([\d.]+)\s+mW", output
+        )
         if sys_power_match:
-            metrics['system_power_milliwatts'] = float(sys_power_match.group(1))
+            metrics["system_power_milliwatts"] = float(sys_power_match.group(1))
 
         # CPU Usage (%)
-        cpu_usage_match = re.search(r'CPU Average frequency as fraction of nominal:\s+([\d.]+)%', output)
+        cpu_usage_match = re.search(
+            r"CPU Average frequency as fraction of nominal:\s+([\d.]+)%", output
+        )
         if cpu_usage_match:
-            metrics['cpu_usage_percent'] = float(cpu_usage_match.group(1))
+            metrics["cpu_usage_percent"] = float(cpu_usage_match.group(1))
 
         return metrics
 
@@ -72,10 +76,19 @@ class PowerMetrics:
         try:
             # Run powermetrics for 1 sample
             result = subprocess.run(
-                ['sudo', 'powermetrics', '--samplers', 'smc,cpu_power,gpu_power', '-i', '1000', '-n', '1'],
+                [
+                    "sudo",
+                    "powermetrics",
+                    "--samplers",
+                    "smc,cpu_power,gpu_power",
+                    "-i",
+                    "1000",
+                    "-n",
+                    "1",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode == 0:
@@ -97,9 +110,9 @@ class MetricsHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Handle GET requests"""
-        if self.path == '/metrics':
+        if self.path == "/metrics":
             self.serve_metrics()
-        elif self.path == '/health':
+        elif self.path == "/health":
             self.serve_health()
         else:
             self.send_error(404)
@@ -136,19 +149,19 @@ class MetricsHandler(BaseHTTPRequestHandler):
             "",
         ]
 
-        response = '\n'.join(lines)
+        response = "\n".join(lines)
 
         self.send_response(200)
-        self.send_header('Content-Type', 'text/plain; version=0.0.4')
+        self.send_header("Content-Type", "text/plain; version=0.0.4")
         self.end_headers()
         self.wfile.write(response.encode())
 
     def serve_health(self):
         """Health check endpoint"""
         self.send_response(200)
-        self.send_header('Content-Type', 'text/plain')
+        self.send_header("Content-Type", "text/plain")
         self.end_headers()
-        self.wfile.write(b'OK')
+        self.wfile.write(b"OK")
 
     def log_message(self, format, *args):
         """Override to reduce log noise"""
@@ -156,9 +169,13 @@ class MetricsHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='PowerMetrics Exporter for Prometheus')
-    parser.add_argument('--port', type=int, default=9101, help='Port to listen on (default: 9101)')
-    parser.add_argument('--host', type=str, default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
+    parser = argparse.ArgumentParser(description="PowerMetrics Exporter for Prometheus")
+    parser.add_argument(
+        "--port", type=int, default=9101, help="Port to listen on (default: 9101)"
+    )
+    parser.add_argument(
+        "--host", type=str, default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)"
+    )
     args = parser.parse_args()
 
     server = HTTPServer((args.host, args.port), MetricsHandler)
@@ -173,5 +190,5 @@ def main():
         server.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
