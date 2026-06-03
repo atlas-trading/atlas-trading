@@ -3,5 +3,5 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class TradingPair:
-    base: str
-    quote: str
+    base: str   # "BTC"
+    quote: str  # "USDT"
