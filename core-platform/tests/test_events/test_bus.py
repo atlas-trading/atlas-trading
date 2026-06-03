@@ -5,7 +5,8 @@ import pytest
 from atlas.core.exchange import Exchange
 from atlas.core.parsers import parse_trading_pair
 from atlas.events.bus import EventBus
-from atlas.events.types import MarketDataEvent, SignalEvent
+from atlas.events.market_data_event import MarketDataEvent
+from atlas.events.signal_event import SignalEvent
 
 
 @pytest.mark.asyncio
