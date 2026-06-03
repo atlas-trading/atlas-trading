@@ -3,6 +3,7 @@ import dataclasses
 
 import ccxt.pro as ccxtpro
 
+from atlas.core.parsers import to_ccxt_symbol
 from atlas.core.trading_pair import TradingPair
 from atlas.exchange.exchange_interface import ExchangeInterface, TickerCallback
 from atlas.execution.order import Order
@@ -25,7 +26,7 @@ class BinanceAdapter(ExchangeInterface):
     async def subscribe_ticker(
         self, trading_pairs: list[TradingPair], callback: TickerCallback
     ) -> None:
-        symbols = [f"{pair.ticker}/{pair.quote}" for pair in trading_pairs]
+        symbols = [to_ccxt_symbol(pair) for pair in trading_pairs]
         self._running = True
         while self._running:
             try:
@@ -38,7 +39,7 @@ class BinanceAdapter(ExchangeInterface):
         await callback(tickers)
 
     async def place_order(self, order: Order) -> Order:
-        symbol = f"{order.trading_pair.ticker}/{order.trading_pair.quote}"
+        symbol = to_ccxt_symbol(order.trading_pair)
         result = await self._exchange.create_order(
             symbol=symbol,
             type=order.order_type.value,

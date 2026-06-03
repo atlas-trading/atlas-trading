@@ -6,3 +6,7 @@ from atlas.core.trading_pair import TradingPair
 def parse_trading_pair(symbol: str) -> TradingPair:
     ticker, quote = symbol.split("/")
     return TradingPair(ticker=Ticker(ticker), quote=Quote(quote))
+
+
+def to_ccxt_symbol(pair: TradingPair) -> str:
+    return f"{pair.ticker}/{pair.quote}"
