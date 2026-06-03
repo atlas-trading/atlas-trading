@@ -6,6 +6,7 @@ import ccxt.pro as ccxtpro
 
 from atlas.core.parsers import to_ccxt_symbol
 from atlas.core.trading_pair import TradingPair
+from atlas.exchange.ccxt_order_result import CcxtOrderResult
 from atlas.exchange.exchange_interface import ExchangeInterface, TickerCallback
 from atlas.execution.balance import Balance
 from atlas.execution.order import Order
@@ -28,7 +29,7 @@ class BinanceAdapter(ExchangeInterface):
     async def subscribe_ticker(
         self, trading_pairs: list[TradingPair], callback: TickerCallback
     ) -> None:
-        symbols = [to_ccxt_symbol(pair) for pair in trading_pairs]
+        symbols: list[str] = [to_ccxt_symbol(pair) for pair in trading_pairs]
         self._running = True
         while self._running:
             try:
@@ -42,16 +43,15 @@ class BinanceAdapter(ExchangeInterface):
 
     async def place_order(self, order: Order) -> Order:
         symbol: str = to_ccxt_symbol(order.trading_pair)
-        order_result = await self._exchange.create_order(
+        raw = await self._exchange.create_order(
             symbol=symbol,
             type=order.order_type.value,
             side=order.side.value,
             amount=float(order.quantity),
             price=float(order.price) if order.price else None,
         )
-        new_status = (
-            OrderStatus.FILLED if order_result["status"] == "closed" else OrderStatus.PENDING
-        )
+        order_result = CcxtOrderResult(id=raw["id"], status=raw["status"])
+        new_status = OrderStatus.FILLED if order_result.status == "closed" else OrderStatus.PENDING
         return dataclasses.replace(order, status=new_status)
 
     async def cancel_order(self, order_id: str) -> None:
