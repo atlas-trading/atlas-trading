@@ -11,7 +11,7 @@ def _make_mock() -> ExchangeInterface:
         async def place_order(self, order):
             return order
 
-        async def cancel_order(self, order_id):
+        async def cancel_order(self, order):
             pass
 
         async def get_balance(self):
