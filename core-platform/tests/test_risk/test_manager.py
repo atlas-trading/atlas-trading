@@ -1,9 +1,11 @@
 from decimal import Decimal
 
+from atlas.core.exchange import Exchange
 from atlas.core.quote import Quote
 from atlas.core.ticker import Ticker
 from atlas.core.trading_pair import TradingPair
 from atlas.execution.arb_signal import ArbSignal
+from atlas.execution.side import Side
 from atlas.risk.manager import RiskDecision, RiskManager
 
 _BTC_USDT = TradingPair(ticker=Ticker.BTC, quote=Quote.USDT)
@@ -12,11 +14,15 @@ _ETH_USDT = TradingPair(ticker=Ticker.ETH, quote=Quote.USDT)
 
 def _make_signal(qty: Decimal = Decimal("0.01")) -> ArbSignal:
     return ArbSignal(
+        exchange=Exchange.BINANCE,
         leg1_pair=_BTC_USDT,
+        leg1_side=Side.BUY,
         leg1_quantity=qty,
         leg2_pair=_ETH_USDT,
+        leg2_side=Side.BUY,
         leg2_quantity=qty,
         leg3_pair=_BTC_USDT,
+        leg3_side=Side.SELL,
         leg3_quantity=qty,
         expected_profit=Decimal("5"),
     )
