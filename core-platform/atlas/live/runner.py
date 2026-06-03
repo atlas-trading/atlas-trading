@@ -24,7 +24,8 @@ class LiveRunner:
     async def on_tickers(self, tickers: dict[str, Any]) -> None:
         if self._verbose:
             preview = " | ".join(
-                f"{s} {d.get('bid')}/{d.get('ask')}" for s, d in list(tickers.items())[:4]
+                f"{s} {d.get('bid') or d.get('last')}/{d.get('ask') or d.get('last')}"
+                for s, d in list(tickers.items())[:4]
             )
             suffix = f" +{len(tickers) - 4} more" if len(tickers) > 4 else ""
             print(f"[TICK] {preview}{suffix}")
