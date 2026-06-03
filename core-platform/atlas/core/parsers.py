@@ -1,5 +1,5 @@
-from atlas.core.ticker import Ticker
 from atlas.core.quote import Quote
+from atlas.core.ticker import Ticker
 from atlas.core.trading_pair import TradingPair
 
 

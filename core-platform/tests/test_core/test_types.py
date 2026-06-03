@@ -1,7 +1,8 @@
 from decimal import Decimal
-from atlas.core.ticker import Ticker
-from atlas.core.quote import Quote
+
 from atlas.core.parsers import parse_trading_pair
+from atlas.core.quote import Quote
+from atlas.core.ticker import Ticker
 
 
 def test_parse_trading_pair():
