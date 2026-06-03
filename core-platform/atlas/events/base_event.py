@@ -1,11 +1,9 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
+from atlas.core.time import utc_now
 
 
 @dataclass(frozen=True, kw_only=True)
 class BaseEvent:
-    timestamp: datetime = field(default_factory=_now)
+    timestamp: datetime = field(default_factory=utc_now)
