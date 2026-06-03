@@ -1,0 +1,78 @@
+from decimal import Decimal
+
+import pytest
+
+from atlas.core.exchange import Exchange
+from atlas.core.parsers import parse_trading_pair
+from atlas.events.bus import EventBus
+from atlas.events.types import MarketDataEvent, SignalEvent
+
+
+@pytest.mark.asyncio
+async def test_subscribe_and_receive_event():
+    bus = EventBus()
+    received = []
+
+    async def handler(event: MarketDataEvent):
+        received.append(event)
+
+    bus.subscribe(MarketDataEvent, handler)
+    event = MarketDataEvent(
+        exchange=Exchange.BINANCE,
+        trading_pair=parse_trading_pair("BTC/USDT"),
+        bid=Decimal("50000"),
+        ask=Decimal("50001"),
+        last=Decimal("50000"),
+    )
+    await bus.publish(event)
+
+    assert len(received) == 1
+    assert received[0].trading_pair.ticker == "BTC"
+
+
+@pytest.mark.asyncio
+async def test_multiple_subscribers_receive_same_event():
+    bus = EventBus()
+    results = []
+
+    async def handler_a(e):
+        results.append("a")
+
+    async def handler_b(e):
+        results.append("b")
+
+    bus.subscribe(MarketDataEvent, handler_a)
+    bus.subscribe(MarketDataEvent, handler_b)
+    await bus.publish(
+        MarketDataEvent(
+            exchange=Exchange.BINANCE,
+            trading_pair=parse_trading_pair("ETH/USDT"),
+            bid=Decimal("3000"),
+            ask=Decimal("3001"),
+            last=Decimal("3000"),
+        )
+    )
+
+    assert sorted(results) == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_unsubscribed_type_not_received():
+    bus = EventBus()
+    received = []
+
+    async def handler(e):
+        received.append(e)
+
+    bus.subscribe(SignalEvent, handler)
+    await bus.publish(
+        MarketDataEvent(
+            exchange=Exchange.BINANCE,
+            trading_pair=parse_trading_pair("BTC/USDT"),
+            bid=Decimal("50000"),
+            ask=Decimal("50001"),
+            last=Decimal("50000"),
+        )
+    )
+
+    assert received == []
