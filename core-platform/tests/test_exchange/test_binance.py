@@ -4,6 +4,7 @@ import pytest
 
 from atlas.exchange.binance import BinanceAdapter
 from atlas.exchange.exchange_interface import ExchangeInterface
+from atlas.execution.balance import Balance
 
 _TESTNET_KEY = os.getenv("BINANCE_TESTNET_API_KEY", "")
 _TESTNET_SECRET = os.getenv("BINANCE_TESTNET_API_SECRET", "")
@@ -49,6 +50,6 @@ async def test_health_check_testnet():
 async def test_get_balance_testnet():
     adapter = BinanceAdapter(api_key=_TESTNET_KEY, api_secret=_TESTNET_SECRET, testnet=True)
     try:
-        assert isinstance(await adapter.get_balance(), dict)
+        assert isinstance(await adapter.get_balance(), Balance)
     finally:
         await adapter.close()

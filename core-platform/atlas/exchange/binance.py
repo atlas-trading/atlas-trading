@@ -1,11 +1,13 @@
 import asyncio
 import dataclasses
+from decimal import Decimal
 
 import ccxt.pro as ccxtpro
 
 from atlas.core.parsers import to_ccxt_symbol
 from atlas.core.trading_pair import TradingPair
 from atlas.exchange.exchange_interface import ExchangeInterface, TickerCallback
+from atlas.execution.balance import Balance
 from atlas.execution.order import Order
 from atlas.execution.order_status import OrderStatus
 
@@ -39,22 +41,29 @@ class BinanceAdapter(ExchangeInterface):
         await callback(tickers)
 
     async def place_order(self, order: Order) -> Order:
-        symbol = to_ccxt_symbol(order.trading_pair)
-        result = await self._exchange.create_order(
+        symbol: str = to_ccxt_symbol(order.trading_pair)
+        order_result = await self._exchange.create_order(
             symbol=symbol,
             type=order.order_type.value,
             side=order.side.value,
             amount=float(order.quantity),
             price=float(order.price) if order.price else None,
         )
-        new_status = OrderStatus.FILLED if result["status"] == "closed" else OrderStatus.PENDING
+        new_status = (
+            OrderStatus.FILLED if order_result["status"] == "closed" else OrderStatus.PENDING
+        )
         return dataclasses.replace(order, status=new_status)
 
     async def cancel_order(self, order_id: str) -> None:
         await self._exchange.cancel_order(order_id)
 
-    async def get_balance(self) -> dict:
-        return await self._exchange.fetch_balance()
+    async def get_balance(self) -> Balance:
+        raw = await self._exchange.fetch_balance()
+        return Balance(
+            usdt=Decimal(str(raw.get("USDT", {}).get("free", 0))),
+            btc=Decimal(str(raw.get("BTC", {}).get("free", 0))),
+            eth=Decimal(str(raw.get("ETH", {}).get("free", 0))),
+        )
 
     async def health_check(self) -> bool:
         try:
