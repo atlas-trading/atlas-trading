@@ -1,6 +1,7 @@
 import pytest
 
 from atlas.exchange.binance import BinanceAdapter
+from atlas.exchange.ccxt_ticker import CcxtTicker
 from atlas.exchange.exchange_interface import ExchangeInterface
 
 
@@ -14,7 +15,7 @@ async def test_on_ticker_calls_callback():
     adapter = BinanceAdapter(api_key="test", api_secret="test")
     received = []
 
-    async def callback(tickers: dict):
+    async def callback(tickers):
         received.append(tickers)
 
     await adapter._on_ticker(
@@ -23,4 +24,5 @@ async def test_on_ticker_calls_callback():
     )
 
     assert len(received) == 1
-    assert received[0]["BTC/USDT"]["bid"] == 50000.0
+    assert isinstance(received[0]["BTC/USDT"], CcxtTicker)
+    assert received[0]["BTC/USDT"].bid == 50000.0
