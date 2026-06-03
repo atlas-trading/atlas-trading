@@ -3,18 +3,18 @@ from typing import Any
 from atlas.exchange.exchange_interface import ExchangeInterface
 from atlas.execution.engine import ExecutionEngine
 from atlas.market.feed import MarketDataFeed
-from atlas.strategy.arbitrage.triangular import TriangularArbitrageStrategy
+from atlas.strategy.strategy import Strategy
 
 
 class LiveRunner:
     def __init__(
         self,
-        adapter: ExchangeInterface,
+        exchange: ExchangeInterface,
         feed: MarketDataFeed,
-        strategy: TriangularArbitrageStrategy,
+        strategy: Strategy,
         engine: ExecutionEngine,
     ) -> None:
-        self._adapter = adapter
+        self._exchange = exchange
         self._feed = feed
         self._strategy = strategy
         self._engine = engine
@@ -26,7 +26,7 @@ class LiveRunner:
             await self._engine.on_signal(signal)
 
     async def run(self) -> None:
-        await self._adapter.subscribe_ticker(
+        await self._exchange.subscribe_ticker(
             trading_pairs=self._strategy.all_pairs(),
             callback=self.on_tickers,
         )

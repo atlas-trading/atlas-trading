@@ -74,7 +74,7 @@ def _make_runner(
         state_machine=sm,
     )
     runner = LiveRunner(
-        adapter=_FakeAdapter(),
+        exchange=_FakeAdapter(),
         feed=feed,
         strategy=strategy,
         engine=engine,
