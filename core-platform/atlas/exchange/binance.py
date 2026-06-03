@@ -50,7 +50,7 @@ class BinanceAdapter(ExchangeInterface):
     async def _on_ticker(self, tickers: dict, callback: TickerCallback) -> None:
         await callback(tickers)
 
-    async def place_order(self, order: Order) -> Order:
+    async def place_order(self, order: Order) -> OrderResult:
         symbol: str = to_ccxt_symbol(order.trading_pair)
         raw = await self._exchange.create_order(
             symbol=symbol,
@@ -60,7 +60,7 @@ class BinanceAdapter(ExchangeInterface):
             price=float(order.price) if order.price else None,
         )
 
-        order_result = OrderResult(
+        return OrderResult(
             id=raw["id"],
             status=_CCXT_STATUS_MAP.get(raw.get("status", ""), OrderStatus.PENDING),
             symbol=raw.get("symbol"),
@@ -78,18 +78,6 @@ class BinanceAdapter(ExchangeInterface):
             time_in_force=raw.get("timeInForce"),
             post_only=raw.get("postOnly"),
             reduce_only=raw.get("reduceOnly"),
-        )
-
-        return Order(
-            id=order.id,
-            exchange=order.exchange,
-            trading_pair=order.trading_pair,
-            side=order.side,
-            order_type=order.order_type,
-            quantity=order.quantity,
-            price=order.price,
-            status=order_result.status or OrderStatus.PENDING,
-            created_at=order.created_at,
         )
 
     async def cancel_order(self, order: Order) -> None:

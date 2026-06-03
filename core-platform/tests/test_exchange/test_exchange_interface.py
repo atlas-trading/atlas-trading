@@ -3,13 +3,15 @@ from decimal import Decimal
 import pytest
 
 from atlas.exchange.exchange_interface import ExchangeInterface
+from atlas.exchange.order_result import OrderResult
 from atlas.execution.balance import Balance
+from atlas.execution.order_status import OrderStatus
 
 
 def _make_mock() -> ExchangeInterface:
     class MockExchange(ExchangeInterface):
         async def place_order(self, order):
-            return order
+            return OrderResult(id="mock-id", status=OrderStatus.PENDING)
 
         async def cancel_order(self, order):
             pass
