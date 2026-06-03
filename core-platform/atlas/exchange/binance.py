@@ -26,11 +26,11 @@ class BinanceAdapter(ExchangeInterface):
     async def subscribe_ticker(
         self, trading_pairs: list[TradingPair], callback: TickerCallback
     ) -> None:
-        symbols = [to_ccxt_symbol(pair) for pair in trading_pairs]
+        symbols: list[str] = [to_ccxt_symbol(pair) for pair in trading_pairs]
         self._running = True
         while self._running:
             try:
-                tickers = await self._exchange.watch_tickers(symbols)
+                tickers: dict = await self._exchange.watch_tickers(symbols)
                 await self._on_ticker(tickers, callback)
             except Exception:
                 await asyncio.sleep(1)
@@ -39,15 +39,17 @@ class BinanceAdapter(ExchangeInterface):
         await callback(tickers)
 
     async def place_order(self, order: Order) -> Order:
-        symbol = to_ccxt_symbol(order.trading_pair)
-        result = await self._exchange.create_order(
+        symbol: str = to_ccxt_symbol(order.trading_pair)
+        result: dict = await self._exchange.create_order(
             symbol=symbol,
             type=order.order_type.value,
             side=order.side.value,
             amount=float(order.quantity),
             price=float(order.price) if order.price else None,
         )
-        new_status = OrderStatus.FILLED if result["status"] == "closed" else OrderStatus.PENDING
+        new_status: OrderStatus = (
+            OrderStatus.FILLED if result["status"] == "closed" else OrderStatus.PENDING
+        )
         return dataclasses.replace(order, status=new_status)
 
     async def cancel_order(self, order_id: str) -> None:

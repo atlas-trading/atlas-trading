@@ -33,22 +33,24 @@ async def test_on_ticker_calls_callback():
 
 
 @requires_testnet
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_health_check_testnet():
     adapter = BinanceAdapter(api_key=_TESTNET_KEY, api_secret=_TESTNET_SECRET, testnet=True)
     try:
-        result = await adapter.health_check()
+        result: bool = await adapter.health_check()
         assert result is True
     finally:
         await adapter.close()
 
 
 @requires_testnet
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_get_balance_testnet():
     adapter = BinanceAdapter(api_key=_TESTNET_KEY, api_secret=_TESTNET_SECRET, testnet=True)
     try:
-        balance = await adapter.get_balance()
+        balance: dict = await adapter.get_balance()
         assert isinstance(balance, dict)
     finally:
         await adapter.close()
