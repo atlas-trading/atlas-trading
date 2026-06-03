@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, Numeric, String, func
+from sqlalchemy import DateTime, Integer, Numeric, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -12,7 +12,7 @@ class Base(DeclarativeBase):
 class RawTick(Base):
     __tablename__ = "raw_ticks"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     exchange: Mapped[str] = mapped_column(String(50))
     symbol: Mapped[str] = mapped_column(String(20))
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -26,7 +26,7 @@ class RawTick(Base):
 class OHLCVRecord(Base):
     __tablename__ = "ohlcv"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     exchange: Mapped[str] = mapped_column(String(50))
     symbol: Mapped[str] = mapped_column(String(20))
     timeframe: Mapped[str] = mapped_column(String(10))
@@ -70,7 +70,7 @@ class ArbAttempt(Base):
 class TradeResult(Base):
     __tablename__ = "trade_results"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     arb_id: Mapped[str] = mapped_column(String(100))
     exchange: Mapped[str] = mapped_column(String(50))
     pnl: Mapped[Decimal] = mapped_column(Numeric(20, 8))
