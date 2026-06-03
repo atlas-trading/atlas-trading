@@ -1,5 +1,6 @@
 import asyncio
 from decimal import Decimal
+from typing import Any
 
 import ccxt.pro as ccxtpro
 
@@ -47,7 +48,7 @@ class BinanceAdapter(ExchangeInterface):
             except Exception:
                 await asyncio.sleep(1)
 
-    async def _on_ticker(self, tickers: dict, callback: TickerCallback) -> None:
+    async def _on_ticker(self, tickers: dict[str, Any], callback: TickerCallback) -> None:
         await callback(tickers)
 
     async def place_order(self, order: Order) -> OrderResult:

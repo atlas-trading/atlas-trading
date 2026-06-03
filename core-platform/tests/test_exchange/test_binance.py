@@ -14,7 +14,7 @@ async def test_on_ticker_calls_callback():
     adapter = BinanceAdapter(api_key="test", api_secret="test")
     received = []
 
-    async def callback(tickers: dict):
+    async def callback(tickers):
         received.append(tickers)
 
     await adapter._on_ticker(
