@@ -28,3 +28,6 @@ jobs:
       - run: uv sync --extra dev
 
       - run: uv run pytest tests/ -v
+        env:
+          BINANCE_TESTNET_API_KEY: ${{ secrets.BINANCE_TESTNET_API_KEY }}
+          BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
