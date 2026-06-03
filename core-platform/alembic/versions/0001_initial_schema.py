@@ -29,7 +29,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.execute("SELECT create_hypertable('raw_ticks', 'timestamp')")
 
     op.create_table(
         "ohlcv",
@@ -46,7 +45,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.execute("SELECT create_hypertable('ohlcv', 'timestamp')")
 
     op.create_table(
         "orders",
