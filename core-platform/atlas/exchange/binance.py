@@ -11,6 +11,14 @@ from atlas.execution.balance import Balance
 from atlas.execution.order import Order
 from atlas.execution.order_status import OrderStatus
 
+_CCXT_STATUS_MAP: dict[str, OrderStatus] = {
+    "open": OrderStatus.PENDING,
+    "closed": OrderStatus.FILLED,
+    "canceled": OrderStatus.CANCELLED,
+    "expired": OrderStatus.CANCELLED,
+    "rejected": OrderStatus.REJECTED,
+}
+
 
 class BinanceAdapter(ExchangeInterface):
     def __init__(self, api_key: str, api_secret: str, testnet: bool = False) -> None:
@@ -52,18 +60,9 @@ class BinanceAdapter(ExchangeInterface):
             price=float(order.price) if order.price else None,
         )
 
-        ccxt_status = raw.get("status", "")
         order_result = OrderResult(
             id=raw["id"],
-            status=(
-                OrderStatus.FILLED
-                if ccxt_status == "closed"
-                else OrderStatus.CANCELLED
-                if ccxt_status in ("canceled", "expired")
-                else OrderStatus.REJECTED
-                if ccxt_status == "rejected"
-                else OrderStatus.PENDING
-            ),
+            status=_CCXT_STATUS_MAP.get(raw.get("status", ""), OrderStatus.PENDING),
             symbol=raw.get("symbol"),
             type=raw.get("type"),
             side=raw.get("side"),
