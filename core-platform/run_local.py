@@ -32,6 +32,7 @@ from atlas.strategy.arbitrage.triangular import TriangularArbitrageStrategy
 VERBOSE = os.environ.get("VERBOSE", "1") == "1"
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
+ALERT_API_URL = os.environ.get("ALERT_API_URL", "http://localhost:8000/internal/alert")
 
 # 레그당 주문량 (BTC 기준 소수점). 테스트넷이라 0.001 BTC ≈ $50 수준으로 설정
 ORDER_QUANTITY = Decimal(os.environ.get("ORDER_QUANTITY", "0.001"))
@@ -79,9 +80,17 @@ async def main() -> None:
     )
 
     workers = []
-    if DISCORD_WEBHOOK:
+    # AlertWorker fans entries out to Discord (human) and/or the api-server
+    # internal endpoint (dashboard fan-out). Run it whenever either is set.
+    if DISCORD_WEBHOOK or ALERT_API_URL:
         workers.append(
-            asyncio.create_task(AlertWorker(queue=alert_queue, webhook_url=DISCORD_WEBHOOK).run())
+            asyncio.create_task(
+                AlertWorker(
+                    queue=alert_queue,
+                    webhook_url=DISCORD_WEBHOOK or None,
+                    http_url=ALERT_API_URL or None,
+                ).run()
+            )
         )
 
     pairs = strategy.all_pairs()
