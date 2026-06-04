@@ -37,8 +37,15 @@ def _make_signal() -> ArbSignal:
     )
 
 
+def _make_rm() -> RiskManager:
+    # Limits are USDT-notional. 0.01 BTC * $50000 = $500 per leg, $1500 total.
+    rm = RiskManager(max_order_size=Decimal("10000"), max_exposure=Decimal("100000"))
+    rm.update_prices({_PAIR: Decimal("50000")})
+    return rm
+
+
 async def test_approved_signal_starts_state_machine():
-    rm = RiskManager(max_order_size=Decimal("1"), max_exposure=Decimal("10"))
+    rm = _make_rm()
     sm = _FakeStateMachine()
     engine = ExecutionEngine(risk_manager=rm, state_machine=sm)
 
@@ -48,7 +55,7 @@ async def test_approved_signal_starts_state_machine():
 
 
 async def test_rejected_signal_skips_state_machine():
-    rm = RiskManager(max_order_size=Decimal("1"), max_exposure=Decimal("10"))
+    rm = _make_rm()
     rm.set_kill_switch(True)
     sm = _FakeStateMachine()
     engine = ExecutionEngine(risk_manager=rm, state_machine=sm)
@@ -59,7 +66,7 @@ async def test_rejected_signal_skips_state_machine():
 
 
 async def test_multiple_signals_only_approved_forwarded():
-    rm = RiskManager(max_order_size=Decimal("1"), max_exposure=Decimal("10"))
+    rm = _make_rm()
     sm = _FakeStateMachine()
     engine = ExecutionEngine(risk_manager=rm, state_machine=sm)
 
@@ -68,4 +75,17 @@ async def test_multiple_signals_only_approved_forwarded():
     await engine.on_signal(_make_signal())
     await engine.on_signal(_make_signal())
 
+    assert len(sm.started) == 1
+
+
+async def test_update_prices_forwards_to_risk_manager():
+    rm = _make_rm()
+    sm = _FakeStateMachine()
+    engine = ExecutionEngine(risk_manager=rm, state_machine=sm)
+
+    # Engine should plumb USDT prices through to the risk manager so it can value legs.
+    engine.update_prices({_PAIR: Decimal("60000")})
+
+    # Approval still works because both legs/exposure remain within limits.
+    await engine.on_signal(_make_signal())
     assert len(sm.started) == 1

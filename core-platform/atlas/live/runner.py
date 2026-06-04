@@ -1,5 +1,9 @@
+from decimal import Decimal
 from typing import Any
 
+from atlas.core.parsers import parse_trading_pair
+from atlas.core.quote import Quote
+from atlas.core.trading_pair import TradingPair
 from atlas.exchange.exchange_interface import ExchangeInterface
 from atlas.execution.engine import ExecutionEngine
 from atlas.market.feed import MarketDataFeed
@@ -30,6 +34,7 @@ class LiveRunner:
             suffix = f" +{len(tickers) - 4} more" if len(tickers) > 4 else ""
             print(f"[TICK] {preview}{suffix}")
 
+        self._engine.update_prices(_extract_usdt_prices(tickers))
         await self._feed.on_tickers(tickers)
         signals = self._strategy.on_tickers(tickers)
 
@@ -51,3 +56,22 @@ class LiveRunner:
             trading_pairs=self._strategy.all_pairs(),
             callback=self.on_tickers,
         )
+
+
+def _extract_usdt_prices(tickers: dict[str, Any]) -> dict[TradingPair, Decimal]:
+    """Pick out only the USDT-quoted pairs so the risk manager can value legs."""
+    out: dict[TradingPair, Decimal] = {}
+    for symbol, data in tickers.items():
+        try:
+            pair = parse_trading_pair(symbol)
+        except (ValueError, KeyError):
+            continue
+        if pair.quote != Quote.USDT:
+            continue
+        last = data.get("last") or 0
+        bid = data.get("bid") or last
+        ask = data.get("ask") or last
+        if bid and ask:
+            mid = (Decimal(str(bid)) + Decimal(str(ask))) / Decimal("2")
+            out[pair] = mid
+    return out

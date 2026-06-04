@@ -69,8 +69,9 @@ def _make_runner(
         order_quantity=Decimal("0.01"),
         min_profit=min_profit,
     )
+    # USDT-notional limits sized generously so prices fed from _ARB_TICKERS pass risk.
     engine = ExecutionEngine(
-        risk_manager=RiskManager(max_order_size=Decimal("1"), max_exposure=Decimal("10")),
+        risk_manager=RiskManager(max_order_size=Decimal("1e9"), max_exposure=Decimal("1e9")),
         state_machine=sm,
     )
     runner = LiveRunner(

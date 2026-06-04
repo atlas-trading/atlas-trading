@@ -64,9 +64,10 @@ async def main() -> None:
     state_machine = ArbitrageStateMachine(
         exchange=adapter, verbose=VERBOSE, session_factory=session_factory
     )
+    # USDT notional caps. 0.001 BTC ≈ $50 → per-leg cap $200 keeps test orders snug.
     risk_manager = RiskManager(
-        max_order_size=Decimal("0.01"),
-        max_exposure=Decimal("0.03"),
+        max_order_size=Decimal("200"),
+        max_exposure=Decimal("600"),
     )
     engine = ExecutionEngine(risk_manager=risk_manager, state_machine=state_machine)
     runner = LiveRunner(
