@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchTrades, Trade } from "../api/trades";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -11,13 +11,34 @@ const STATUS_COLOR: Record<string, string> = {
 export function TradeTable() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
+
+    const applyTrades = (next: Trade[]) => {
+      // L-9: guard against late responses after unmount.
+      if (mountedRef.current) setTrades(next);
+    };
+    const stopLoading = () => {
+      if (mountedRef.current) setLoading(false);
+    };
+
     fetchTrades()
-      .then(setTrades)
-      .finally(() => setLoading(false));
-    const id = setInterval(() => fetchTrades().then(setTrades), 5000);
-    return () => clearInterval(id);
+      .then(applyTrades)
+      .catch((err) => console.error("fetchTrades failed", err))
+      .finally(stopLoading);
+
+    const id = setInterval(() => {
+      fetchTrades()
+        .then(applyTrades)
+        .catch((err) => console.error("fetchTrades failed", err));
+    }, 5000);
+
+    return () => {
+      mountedRef.current = false;
+      clearInterval(id);
+    };
   }, []);
 
   if (loading) return <p className="text-gray-400 text-sm">불러오는 중...</p>;
