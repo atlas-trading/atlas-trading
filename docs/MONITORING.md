@@ -36,7 +36,7 @@ http://172.30.1.61:31177
 
 **로그인 정보:**
 - Username: `admin`
-- Password: `admin123`
+- Password: 초기 배포 시 설정한 값 (내부 문서 참조)
 
 ### Prometheus UI
 
