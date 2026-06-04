@@ -9,7 +9,8 @@ _EPS = 1e-10
 
 # (from_currency, to_currency, log_weight, trading_pair, side)
 _Edge = tuple[str, str, float, TradingPair, Side]
-_PredEntry = tuple[str, TradingPair, Side]
+# pred chain entry: (predecessor_node, pair, side, log_weight)
+_PredEntry = tuple[str, TradingPair, Side, float]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -23,46 +24,70 @@ def detect_arbitrage(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> ArbO
     Bellman-Ford negative cycle detection on the currency exchange graph.
 
     Edge weight = -log(rate), so a negative-weight cycle = product of rates > 1 = arbitrage.
+
+    Uses a virtual source node connected to every real node with weight=0, so all nodes
+    are reachable and dist[v] < inf after the first relaxation pass. After (n-1) full
+    passes, a node whose dist would still decrease on the n-th pass lies on (or is
+    reachable from) a negative cycle.
     """
     if not prices:
         return None
 
     edges = _build_edges(prices)
+    if not edges:
+        return None
+
     nodes = sorted({u for u, *_ in edges} | {v for _, v, *_ in edges})
     n = len(nodes)
 
+    # virtual source: dist=0 here, +inf everywhere else, gets relaxed to 0 in pass 1
     dist: dict[str, float] = {node: 0.0 for node in nodes}
     pred: dict[str, _PredEntry | None] = {node: None for node in nodes}
-    last_relaxed: str | None = None
 
-    for _ in range(n):
-        last_relaxed = None
+    # n - 1 relaxation passes
+    for _ in range(n - 1):
+        updated = False
         for u, v, w, pair, side in edges:
             if dist[u] + w < dist[v] - _EPS:
                 dist[v] = dist[u] + w
-                pred[v] = (u, pair, side)
-                last_relaxed = v
+                pred[v] = (u, pair, side, w)
+                updated = True
+        if not updated:
+            break
 
-    if last_relaxed is None:
+    # n-th pass: any further relaxation indicates a negative cycle reachable from v
+    cycle_node: str | None = None
+    for u, v, w, pair, side in edges:
+        if dist[u] + w < dist[v] - _EPS:
+            pred[v] = (u, pair, side, w)
+            cycle_node = v
+            break
+
+    if cycle_node is None:
         return None
 
-    node = last_relaxed
+    # Walk back n times to guarantee we land on a node inside the cycle.
+    node = cycle_node
     for _ in range(n):
-        node = pred[node][0]  # type: ignore[index]
+        entry = pred[node]
+        if entry is None:
+            return None
+        node = entry[0]
 
+    # Now walk the cycle and collect legs from the pred chain (no edge re-scan needed).
     start = node
     legs: list[tuple[TradingPair, Side]] = []
     total_log_rate = 0.0
 
     current = start
     while True:
-        u, pair, side = pred[current]  # type: ignore[misc]
-        for eu, ev, ew, ep, es in edges:
-            if eu == u and ev == current and ep == pair and es == side:
-                total_log_rate -= ew
-                break
+        entry = pred[current]
+        if entry is None:
+            return None
+        prev_node, pair, side, w = entry
         legs.append((pair, side))
-        current = u
+        total_log_rate -= w  # rate = exp(-w); product is sum of -w
+        current = prev_node
         if current == start:
             break
 
@@ -77,7 +102,9 @@ def _build_edges(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> list[_Ed
         base = str(pair.ticker)
         quote = str(pair.quote)
         if ask > 0:
+            # BUY base with quote: 1 quote → 1/ask base. log(1/ask) = -log(ask) → weight=+log(ask)
             edges.append((quote, base, math.log(float(ask)), pair, Side.BUY))
         if bid > 0:
+            # SELL base for quote: 1 base → bid quote. log(bid) → weight=-log(bid)
             edges.append((base, quote, -math.log(float(bid)), pair, Side.SELL))
     return edges
