@@ -1,8 +1,15 @@
 import asyncio
+import logging
 from decimal import Decimal
 from typing import Any
 
 import ccxt.pro as ccxtpro
+from ccxt.base.errors import (
+    AuthenticationError,
+    ExchangeNotAvailable,
+    NetworkError,
+    RequestTimeout,
+)
 
 from atlas.core.parsers import to_ccxt_symbol
 from atlas.core.trading_pair import TradingPair
@@ -12,6 +19,8 @@ from atlas.execution.balance import Balance
 from atlas.execution.order import Order
 from atlas.execution.order_status import OrderStatus
 
+_log = logging.getLogger(__name__)
+
 _CCXT_STATUS_MAP: dict[str, OrderStatus] = {
     "open": OrderStatus.PENDING,
     "closed": OrderStatus.FILLED,
@@ -19,6 +28,8 @@ _CCXT_STATUS_MAP: dict[str, OrderStatus] = {
     "expired": OrderStatus.CANCELLED,
     "rejected": OrderStatus.REJECTED,
 }
+
+_RECONNECT_BACKOFF_SECONDS = 1.0
 
 
 class BinanceAdapter(ExchangeInterface):
@@ -34,6 +45,7 @@ class BinanceAdapter(ExchangeInterface):
             self._exchange.set_sandbox_mode(True)
 
         self._running = False
+        self._subscribe_task: asyncio.Task | None = None
 
     async def subscribe_ticker(
         self, trading_pairs: list[TradingPair], callback: TickerCallback
@@ -45,20 +57,37 @@ class BinanceAdapter(ExchangeInterface):
             try:
                 tickers = await self._exchange.watch_tickers(symbols)
                 await self._on_ticker(tickers, callback)
+            except asyncio.CancelledError:
+                # Cooperative cancellation must propagate; never swallow.
+                raise
+            except AuthenticationError:
+                # Bad credentials are non-recoverable.
+                _log.exception("binance auth failure; aborting subscribe loop")
+                raise
+            except (NetworkError, RequestTimeout, ExchangeNotAvailable):
+                _log.warning("binance transient error; reconnecting", exc_info=True)
+                await asyncio.sleep(_RECONNECT_BACKOFF_SECONDS)
             except Exception:
-                await asyncio.sleep(1)
+                _log.exception("binance unexpected error in subscribe loop")
+                raise
 
     async def _on_ticker(self, tickers: dict[str, Any], callback: TickerCallback) -> None:
         await callback(tickers)
 
     async def place_order(self, order: Order) -> OrderResult:
         symbol: str = to_ccxt_symbol(order.trading_pair)
+        amount_str = self._exchange.amount_to_precision(symbol, float(order.quantity))
+        price_str = (
+            self._exchange.price_to_precision(symbol, float(order.price)) if order.price else None
+        )
+        params: dict[str, Any] = {"newClientOrderId": order.id}
         raw = await self._exchange.create_order(
             symbol=symbol,
             type=order.order_type.value,
             side=order.side.value,
-            amount=float(order.quantity),
-            price=float(order.price) if order.price else None,
+            amount=amount_str,
+            price=price_str,
+            params=params,
         )
 
         return OrderResult(
@@ -81,8 +110,8 @@ class BinanceAdapter(ExchangeInterface):
             reduce_only=raw.get("reduceOnly"),
         )
 
-    async def cancel_order(self, order: Order) -> None:
-        await self._exchange.cancel_order(order.id, to_ccxt_symbol(order.trading_pair))
+    async def cancel_order(self, order_id: str, symbol: str) -> None:
+        await self._exchange.cancel_order(order_id, symbol)
 
     async def get_balance(self) -> Balance:
         raw = await self._exchange.fetch_balance()
@@ -102,5 +131,12 @@ class BinanceAdapter(ExchangeInterface):
 
     async def close(self) -> None:
         self._running = False
+
+        if self._subscribe_task is not None and not self._subscribe_task.done():
+            self._subscribe_task.cancel()
+            try:
+                await self._subscribe_task
+            except asyncio.CancelledError:
+                pass
 
         await self._exchange.close()

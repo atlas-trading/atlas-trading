@@ -36,7 +36,7 @@ class _FakeAdapter(ExchangeInterface):
     async def place_order(self, order: Order) -> OrderResult:
         raise NotImplementedError
 
-    async def cancel_order(self, order: Order) -> None:
+    async def cancel_order(self, order_id: str, symbol: str) -> None:
         raise NotImplementedError
 
     async def get_balance(self) -> Balance:

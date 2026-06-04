@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -14,6 +15,8 @@ from atlas.execution.side import Side
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import async_sessionmaker
+
+_log = logging.getLogger(__name__)
 
 _LEG1_TIMEOUT = 0.5
 _LEG2_TIMEOUT = 0.3
@@ -52,7 +55,7 @@ class ArbitrageStateMachine:
 
     def _log(self, msg: str) -> None:
         if self._verbose:
-            print(msg)
+            _log.info(msg)
 
     async def start(self, signal: ArbSignal) -> None:
         if self.state != State.IDLE:
@@ -61,73 +64,110 @@ class ArbitrageStateMachine:
         arb_id = str(uuid.uuid4())
         await self._db_create_arb(arb_id, signal)
 
-        self.state = State.LEG1_PENDING
-        self._log(
-            f"[LEG1] {signal.leg1_side.upper()} {signal.leg1_pair} qty={signal.leg1_quantity}"
-        )
-        leg1 = await self._place(
-            signal, signal.leg1_pair, signal.leg1_side, signal.leg1_quantity, self._leg1_timeout
-        )
-        if leg1 is None:
-            self._log("[LEG1] TIMEOUT → IDLE")
-            await self._db_finish_arb(arb_id, "TIMEOUT")
-            self.state = State.IDLE
-            return
-        self._log(f"[LEG1] FILLED avg={leg1.average}")
-        await self._db_save_order(
-            arb_id, leg1, signal, signal.leg1_pair, signal.leg1_side, signal.leg1_quantity
-        )
+        leg1: OrderResult | None = None
+        leg2: OrderResult | None = None
 
-        self.state = State.LEG1_FILLED
-        self.state = State.LEG2_PENDING
-        self._log(
-            f"[LEG2] {signal.leg2_side.upper()} {signal.leg2_pair} qty={signal.leg2_quantity}"
-        )
-        leg2 = await self._place(
-            signal, signal.leg2_pair, signal.leg2_side, signal.leg2_quantity, self._leg2_timeout
-        )
-        if leg2 is None:
-            self._log("[LEG2] TIMEOUT → UNWIND")
+        try:
+            # ---------------- LEG 1 ----------------
+            self.state = State.LEG1_PENDING
+            self._log(
+                f"[LEG1] {signal.leg1_side.upper()} {signal.leg1_pair} qty={signal.leg1_quantity}"
+            )
+            leg1 = await self._place(
+                signal,
+                signal.leg1_pair,
+                signal.leg1_side,
+                signal.leg1_quantity,
+                self._leg1_timeout,
+            )
+            if leg1 is None:
+                self._log("[LEG1] TIMEOUT → IDLE")
+                await self._db_update_arb_status(arb_id, "TIMEOUT")
+                return
+            self._log(f"[LEG1] FILLED avg={leg1.average}")
+            await self._db_save_order(
+                arb_id, leg1, signal, signal.leg1_pair, signal.leg1_side, signal.leg1_quantity
+            )
+            self.state = State.LEG1_FILLED
+            await self._db_update_arb_status(arb_id, "LEG1_FILLED")
+
+            # ---------------- LEG 2 ----------------
+            self.state = State.LEG2_PENDING
+            self._log(
+                f"[LEG2] {signal.leg2_side.upper()} {signal.leg2_pair} qty={signal.leg2_quantity}"
+            )
+            leg2 = await self._place(
+                signal,
+                signal.leg2_pair,
+                signal.leg2_side,
+                signal.leg2_quantity,
+                self._leg2_timeout,
+            )
+            if leg2 is None:
+                self._log("[LEG2] TIMEOUT → UNWIND")
+                self.state = State.UNWINDING
+                await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
+                await self._db_update_arb_status(arb_id, "UNWIND_COMPLETE")
+                self.state = State.UNWIND_COMPLETE
+                return
+            self._log(f"[LEG2] FILLED avg={leg2.average}")
+            await self._db_save_order(
+                arb_id, leg2, signal, signal.leg2_pair, signal.leg2_side, signal.leg2_quantity
+            )
+            self.state = State.LEG2_FILLED
+            await self._db_update_arb_status(arb_id, "LEG2_FILLED")
+
+            # ---------------- LEG 3 ----------------
+            self.state = State.LEG3_PENDING
+            self._log(
+                f"[LEG3] {signal.leg3_side.upper()} {signal.leg3_pair} qty={signal.leg3_quantity}"
+            )
+            leg3 = await self._place(
+                signal,
+                signal.leg3_pair,
+                signal.leg3_side,
+                signal.leg3_quantity,
+                self._leg3_timeout,
+            )
+            if leg3 is None:
+                self._log("[LEG3] TIMEOUT → UNWIND")
+                self.state = State.UNWINDING
+                await self._unwind(signal, signal.leg2_pair, signal.leg2_side, leg2)
+                await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
+                await self._db_update_arb_status(arb_id, "UNWIND_COMPLETE")
+                self.state = State.UNWIND_COMPLETE
+                return
+            self._log(f"[LEG3] FILLED avg={leg3.average}")
+            await self._db_save_order(
+                arb_id, leg3, signal, signal.leg3_pair, signal.leg3_side, signal.leg3_quantity
+            )
+
+            self.state = State.COMPLETE
+            self._log(
+                f"[COMPLETE] expected_profit={signal.expected_profit:.6f}"
+                f" ({float(signal.expected_profit / signal.leg1_quantity) * 100:.3f}%)"
+            )
+            await self._db_update_arb_status(
+                arb_id, "COMPLETE", actual_profit=signal.expected_profit
+            )
+        except asyncio.CancelledError:
+            # Honour cooperative cancellation: do NOT attempt to unwind here,
+            # because the runtime is tearing the loop down.
+            raise
+        except Exception:
+            _log.exception("[STATE] unexpected error during arbitrage; attempting unwind")
             self.state = State.UNWINDING
-            await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
-            await self._db_finish_arb(arb_id, "UNWIND_COMPLETE")
-            self.state = State.UNWIND_COMPLETE
+            try:
+                if leg2 is not None:
+                    await self._unwind(signal, signal.leg2_pair, signal.leg2_side, leg2)
+                if leg1 is not None:
+                    await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
+                await self._db_update_arb_status(arb_id, "UNWIND_COMPLETE")
+            except Exception:
+                _log.exception("[STATE] unwind also failed")
+                await self._db_update_arb_status(arb_id, "FAILED")
+        finally:
             self.state = State.IDLE
-            return
-        self._log(f"[LEG2] FILLED avg={leg2.average}")
-        await self._db_save_order(
-            arb_id, leg2, signal, signal.leg2_pair, signal.leg2_side, signal.leg2_quantity
-        )
-
-        self.state = State.LEG2_FILLED
-        self.state = State.LEG3_PENDING
-        self._log(
-            f"[LEG3] {signal.leg3_side.upper()} {signal.leg3_pair} qty={signal.leg3_quantity}"
-        )
-        leg3 = await self._place(
-            signal, signal.leg3_pair, signal.leg3_side, signal.leg3_quantity, self._leg3_timeout
-        )
-        if leg3 is None:
-            self._log("[LEG3] TIMEOUT → UNWIND")
-            self.state = State.UNWINDING
-            await self._unwind(signal, signal.leg2_pair, signal.leg2_side, leg2)
-            await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
-            await self._db_finish_arb(arb_id, "UNWIND_COMPLETE")
-            self.state = State.UNWIND_COMPLETE
-            self.state = State.IDLE
-            return
-        self._log(f"[LEG3] FILLED avg={leg3.average}")
-        await self._db_save_order(
-            arb_id, leg3, signal, signal.leg3_pair, signal.leg3_side, signal.leg3_quantity
-        )
-
-        self.state = State.COMPLETE
-        self._log(
-            f"[COMPLETE] expected_profit={signal.expected_profit:.6f}"
-            f" ({float(signal.expected_profit / signal.leg1_quantity) * 100:.3f}%)"
-        )
-        await self._db_finish_arb(arb_id, "COMPLETE", actual_profit=signal.expected_profit)
-        self.state = State.IDLE
 
     async def _place(
         self,
@@ -211,7 +251,7 @@ class ArbitrageStateMachine:
             )
             await session.commit()
 
-    async def _db_finish_arb(
+    async def _db_update_arb_status(
         self, arb_id: str, status: str, actual_profit: Decimal | None = None
     ) -> None:
         if self._session_factory is None:
@@ -222,6 +262,8 @@ class ArbitrageStateMachine:
             attempt = await session.get(ArbAttempt, arb_id)
             if attempt:
                 attempt.status = status
-                attempt.actual_profit = actual_profit
-                attempt.completed_at = datetime.now(timezone.utc)
+                if actual_profit is not None:
+                    attempt.actual_profit = actual_profit
+                if status in {"COMPLETE", "UNWIND_COMPLETE", "TIMEOUT", "FAILED"}:
+                    attempt.completed_at = datetime.now(timezone.utc)
                 await session.commit()

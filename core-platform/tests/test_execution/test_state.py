@@ -29,15 +29,24 @@ _SIGNAL = ArbSignal(
 
 
 class _FakeExchange:
-    """Records placed orders. hang_on: set of call-indices (0-based) where place_order will hang."""
+    """Records placed orders. hang_on: set of call-indices (0-based) where place_order will hang.
+    raise_on: set of call-indices where place_order will raise RuntimeError."""
 
-    def __init__(self, *, hang_on: set[int] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        hang_on: set[int] | None = None,
+        raise_on: set[int] | None = None,
+    ) -> None:
         self.placed: list[Order] = []
         self._hang_on = hang_on or set()
+        self._raise_on = raise_on or set()
 
     async def place_order(self, order: Order) -> OrderResult:
         call_idx = len(self.placed)
         self.placed.append(order)
+        if call_idx in self._raise_on:
+            raise RuntimeError("synthetic exchange failure")
         if call_idx in self._hang_on:
             await asyncio.sleep(100)  # triggers timeout in caller
         return OrderResult(id=order.id, status=OrderStatus.FILLED, filled=float(order.quantity))
@@ -112,3 +121,38 @@ async def test_start_while_not_idle_is_ignored():
     await sm.start(_SIGNAL)
 
     assert len(exchange.placed) == 0
+
+
+async def test_exception_on_leg2_triggers_unwind_then_idle():
+    # leg1 succeeds, leg2 raises → must unwind leg1, return to IDLE.
+    exchange = _FakeExchange(raise_on={1})
+    sm = _sm(exchange)
+
+    await sm.start(_SIGNAL)
+
+    assert sm.state == State.IDLE
+    # leg1 + leg2 (raises) + unwind of leg1 = 3 calls.
+    assert len(exchange.placed) == 3
+    assert exchange.placed[2].side == Side.SELL  # unwind of leg1 (BUY → SELL)
+
+
+async def test_exception_on_leg1_returns_idle_without_unwind():
+    # leg1 raises before it can fill, so there's nothing to unwind.
+    exchange = _FakeExchange(raise_on={0})
+    sm = _sm(exchange)
+
+    await sm.start(_SIGNAL)
+
+    assert sm.state == State.IDLE
+    # Only the failed leg1 attempt: no unwind because leg1 never filled.
+    assert len(exchange.placed) == 1
+
+
+async def test_state_returns_to_idle_even_when_unwind_fails():
+    # leg1 succeeds, leg2 raises, then the unwind also raises → must still hit IDLE.
+    exchange = _FakeExchange(raise_on={1, 2})
+    sm = _sm(exchange)
+
+    await sm.start(_SIGNAL)
+
+    assert sm.state == State.IDLE
