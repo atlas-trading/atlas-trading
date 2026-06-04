@@ -2,14 +2,15 @@
 로컬 Binance 테스트넷 실행 스크립트.
 
 환경 변수:
-  BINANCE_API_KEY    — Binance testnet API key
-  BINANCE_API_SECRET — Binance testnet API secret
-  DATABASE_URL       — (선택) PostgreSQL URL (예: postgresql+asyncpg://atlas:atlas@localhost:5432/atlas)
-  DISCORD_WEBHOOK    — (선택) Discord webhook URL
-  VERBOSE            — "1" 이면 틱·신호·체결 로그 출력 (기본 "1")
+  BINANCE_TESTNET_API_KEY    — Binance testnet API key
+  BINANCE_TESTNET_API_SECRET — Binance testnet API secret
+  DATABASE_URL               — (선택) PostgreSQL URL (예: postgresql+asyncpg://atlas:atlas@localhost:5432/atlas)
+  DISCORD_WEBHOOK            — (선택) Discord webhook URL
+  VERBOSE                    — "1" 이면 틱·신호·체결 로그 출력 (기본 "1")
 
 실행:
-  BINANCE_API_KEY=... BINANCE_API_SECRET=... DATABASE_URL=... uv run python run_local.py
+  BINANCE_TESTNET_API_KEY=... BINANCE_TESTNET_API_SECRET=... \
+    DATABASE_URL=... uv run python run_local.py
 """
 
 import asyncio
@@ -38,8 +39,8 @@ MIN_PROFIT = Decimal(os.environ.get("MIN_PROFIT", "0.005"))  # 0.5% — 수수�
 
 
 async def main() -> None:
-    api_key = os.environ["BINANCE_API_KEY"]
-    api_secret = os.environ["BINANCE_API_SECRET"]
+    api_key = os.environ["BINANCE_TESTNET_API_KEY"]
+    api_secret = os.environ["BINANCE_TESTNET_API_SECRET"]
 
     tick_queue: asyncio.Queue = asyncio.Queue()
     alert_queue: OutboxQueue = asyncio.Queue()
