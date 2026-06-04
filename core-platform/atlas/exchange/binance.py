@@ -32,6 +32,12 @@ _CCXT_STATUS_MAP: dict[str, OrderStatus] = {
 _RECONNECT_BACKOFF_SECONDS = 1.0
 
 
+def _to_decimal(value: Any) -> Decimal | None:
+    if value is None:
+        return None
+    return Decimal(str(value))
+
+
 class BinanceAdapter(ExchangeInterface):
     def __init__(self, api_key: str, api_secret: str, testnet: bool = False) -> None:
         self._exchange = ccxtpro.binance(
@@ -98,12 +104,12 @@ class BinanceAdapter(ExchangeInterface):
             side=raw.get("side"),
             timestamp=raw.get("timestamp"),
             datetime=raw.get("datetime"),
-            price=raw.get("price"),
-            average=raw.get("average"),
-            amount=raw.get("amount"),
-            filled=raw.get("filled"),
-            remaining=raw.get("remaining"),
-            cost=raw.get("cost"),
+            price=_to_decimal(raw.get("price")),
+            average=_to_decimal(raw.get("average")),
+            amount=_to_decimal(raw.get("amount")),
+            filled=_to_decimal(raw.get("filled")),
+            remaining=_to_decimal(raw.get("remaining")),
+            cost=_to_decimal(raw.get("cost")),
             client_order_id=raw.get("clientOrderId"),
             time_in_force=raw.get("timeInForce"),
             post_only=raw.get("postOnly"),

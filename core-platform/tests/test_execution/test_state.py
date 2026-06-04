@@ -49,7 +49,7 @@ class _FakeExchange:
             raise RuntimeError("synthetic exchange failure")
         if call_idx in self._hang_on:
             await asyncio.sleep(100)  # triggers timeout in caller
-        return OrderResult(id=order.id, status=OrderStatus.FILLED, filled=float(order.quantity))
+        return OrderResult(id=order.id, status=OrderStatus.FILLED, filled=order.quantity)
 
 
 def _sm(exchange: _FakeExchange) -> ArbitrageStateMachine:

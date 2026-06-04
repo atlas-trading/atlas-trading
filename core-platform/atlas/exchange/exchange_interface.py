@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from atlas.core.trading_pair import TradingPair
 from atlas.exchange.order_result import OrderResult
 from atlas.execution.balance import Balance
 from atlas.execution.order import Order
 
-TickerCallback = Callable
+TickerCallback = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 class ExchangeInterface(ABC):

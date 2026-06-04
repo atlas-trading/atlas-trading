@@ -1,20 +1,9 @@
-from datetime import datetime
-from decimal import Decimal
+"""
+The api-server reuses the SQLAlchemy models that core-platform owns, so the
+schema (column types, indexes, foreign keys) stays in lockstep with the
+state machine and Alembic migrations.
+"""
 
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from atlas.db.models import ArbAttempt, OrderRecord
 
-
-class Base(DeclarativeBase):
-    pass
-
-
-class ArbAttempt(Base):
-    __tablename__ = "arb_attempts"
-
-    id: Mapped[str] = mapped_column(primary_key=True)
-    strategy: Mapped[str]
-    status: Mapped[str]
-    expected_profit: Mapped[Decimal | None]
-    actual_profit: Mapped[Decimal | None]
-    created_at: Mapped[datetime]
-    completed_at: Mapped[datetime | None]
+__all__ = ["ArbAttempt", "OrderRecord"]

@@ -4,8 +4,6 @@ from decimal import Decimal
 import pytest
 
 from atlas.core.exchange import Exchange
-from atlas.events.bus import EventBus
-from atlas.events.market_data_event import MarketDataEvent
 from atlas.market.feed import MarketDataFeed
 from atlas.market.tick import Tick
 
@@ -26,34 +24,9 @@ _ETH_RAW = {
 
 
 @pytest.mark.asyncio
-async def test_on_tickers_publishes_market_data_event():
-    bus = EventBus()
-    tick_queue = asyncio.Queue()
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
-
-    received = []
-
-    async def handler(event):
-        received.append(event)
-
-    bus.subscribe(MarketDataEvent, handler)
-
-    await feed.on_tickers({"BTC/USDT": _BTC_RAW})
-
-    assert len(received) == 1
-    event = received[0]
-    assert isinstance(event, MarketDataEvent)
-    assert event.bid == Decimal("67000.0")
-    assert event.ask == Decimal("67001.0")
-    assert event.last == Decimal("67000.5")
-    assert event.exchange == Exchange.BINANCE
-
-
-@pytest.mark.asyncio
 async def test_on_tickers_puts_tick_to_queue():
-    bus = EventBus()
-    tick_queue = asyncio.Queue()
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
+    tick_queue: asyncio.Queue = asyncio.Queue()
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, tick_queue=tick_queue)
 
     await feed.on_tickers({"BTC/USDT": _BTC_RAW})
 
@@ -66,10 +39,24 @@ async def test_on_tickers_puts_tick_to_queue():
 
 @pytest.mark.asyncio
 async def test_on_tickers_multiple_symbols():
-    bus = EventBus()
-    tick_queue = asyncio.Queue()
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
+    tick_queue: asyncio.Queue = asyncio.Queue()
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, tick_queue=tick_queue)
 
     await feed.on_tickers({"BTC/USDT": _BTC_RAW, "ETH/USDT": _ETH_RAW})
 
     assert tick_queue.qsize() == 2
+
+
+@pytest.mark.asyncio
+async def test_on_tickers_drops_ticks_without_timestamp():
+    # M-8: ticks with missing/zero timestamp must be dropped.
+    tick_queue: asyncio.Queue = asyncio.Queue()
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, tick_queue=tick_queue)
+
+    bad = {**_BTC_RAW, "timestamp": None}
+    await feed.on_tickers({"BTC/USDT": bad})
+    assert tick_queue.qsize() == 0
+
+    bad_zero = {**_BTC_RAW, "timestamp": 0}
+    await feed.on_tickers({"BTC/USDT": bad_zero})
+    assert tick_queue.qsize() == 0

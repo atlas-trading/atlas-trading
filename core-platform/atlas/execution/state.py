@@ -191,7 +191,7 @@ class ArbitrageStateMachine:
             return None
 
     async def _unwind(self, signal: ArbSignal, pair, side: Side, result: OrderResult) -> None:
-        filled = Decimal(str(result.filled)) if result.filled else Decimal("0")
+        filled = result.filled if result.filled else Decimal("0")
         if filled == 0:
             return
         reverse = Side.SELL if side == Side.BUY else Side.BUY

@@ -21,3 +21,6 @@ class Order:
     price: Decimal | None = None  # None for MARKET orders
     status: OrderStatus = OrderStatus.PENDING
     created_at: datetime = field(default_factory=utc_now)
+    # Exchange-assigned order id, populated only after the order has been
+    # placed and the exchange returns its native identifier.
+    exchange_id: str | None = None
