@@ -91,16 +91,19 @@ class ArbitrageStateMachine:
             self.state = State.LEG1_FILLED
             await self._db_update_arb_status(arb_id, "LEG1_FILLED")
 
+            # Propagate actual fill: scale subsequent legs by how much leg1 actually filled.
+            fill1 = leg1.filled if leg1.filled is not None else signal.leg1_quantity
+            ratio1 = fill1 / signal.leg1_quantity if signal.leg1_quantity else Decimal("1")
+            leg2_qty = signal.leg2_quantity * ratio1
+
             # ---------------- LEG 2 ----------------
             self.state = State.LEG2_PENDING
-            self._log(
-                f"[LEG2] {signal.leg2_side.upper()} {signal.leg2_pair} qty={signal.leg2_quantity}"
-            )
+            self._log(f"[LEG2] {signal.leg2_side.upper()} {signal.leg2_pair} qty={leg2_qty}")
             leg2 = await self._place(
                 signal,
                 signal.leg2_pair,
                 signal.leg2_side,
-                signal.leg2_quantity,
+                leg2_qty,
                 self._leg2_timeout,
             )
             if leg2 is None:
@@ -112,21 +115,24 @@ class ArbitrageStateMachine:
                 return
             self._log(f"[LEG2] FILLED avg={leg2.average}")
             await self._db_save_order(
-                arb_id, leg2, signal, signal.leg2_pair, signal.leg2_side, signal.leg2_quantity
+                arb_id, leg2, signal, signal.leg2_pair, signal.leg2_side, leg2_qty
             )
             self.state = State.LEG2_FILLED
             await self._db_update_arb_status(arb_id, "LEG2_FILLED")
 
+            # Scale leg3 by how much leg2 actually filled relative to what was ordered.
+            fill2 = leg2.filled if leg2.filled is not None else leg2_qty
+            ratio2 = fill2 / leg2_qty if leg2_qty else Decimal("1")
+            leg3_qty = signal.leg3_quantity * ratio1 * ratio2
+
             # ---------------- LEG 3 ----------------
             self.state = State.LEG3_PENDING
-            self._log(
-                f"[LEG3] {signal.leg3_side.upper()} {signal.leg3_pair} qty={signal.leg3_quantity}"
-            )
+            self._log(f"[LEG3] {signal.leg3_side.upper()} {signal.leg3_pair} qty={leg3_qty}")
             leg3 = await self._place(
                 signal,
                 signal.leg3_pair,
                 signal.leg3_side,
-                signal.leg3_quantity,
+                leg3_qty,
                 self._leg3_timeout,
             )
             if leg3 is None:
@@ -139,7 +145,7 @@ class ArbitrageStateMachine:
                 return
             self._log(f"[LEG3] FILLED avg={leg3.average}")
             await self._db_save_order(
-                arb_id, leg3, signal, signal.leg3_pair, signal.leg3_side, signal.leg3_quantity
+                arb_id, leg3, signal, signal.leg3_pair, signal.leg3_side, leg3_qty
             )
 
             self.state = State.COMPLETE

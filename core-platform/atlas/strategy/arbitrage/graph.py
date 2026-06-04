@@ -99,12 +99,12 @@ def detect_arbitrage(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> ArbO
 def _build_edges(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> list[_Edge]:
     edges: list[_Edge] = []
     for pair, (bid, ask) in prices.items():
+        if bid <= 0 or ask <= 0 or bid > ask:
+            continue  # reject crossed book and invalid prices
         base = str(pair.ticker)
         quote = str(pair.quote)
-        if ask > 0:
-            # BUY base with quote: 1 quote → 1/ask base. log(1/ask) = -log(ask) → weight=+log(ask)
-            edges.append((quote, base, math.log(float(ask)), pair, Side.BUY))
-        if bid > 0:
-            # SELL base for quote: 1 base → bid quote. log(bid) → weight=-log(bid)
-            edges.append((base, quote, -math.log(float(bid)), pair, Side.SELL))
+        # BUY base with quote: 1 quote → 1/ask base. log(1/ask) = -log(ask) → weight=+log(ask)
+        edges.append((quote, base, math.log(float(ask)), pair, Side.BUY))
+        # SELL base for quote: 1 base → bid quote. log(bid) → weight=-log(bid)
+        edges.append((base, quote, -math.log(float(bid)), pair, Side.SELL))
     return edges

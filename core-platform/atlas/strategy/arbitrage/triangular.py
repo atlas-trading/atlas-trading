@@ -84,8 +84,12 @@ class TriangularArbitrageStrategy:
             last = data.get("last") or 0
             bid = data.get("bid") or last
             ask = data.get("ask") or last
-            if bid and ask:
-                self._prices[pair] = (Decimal(str(bid)), Decimal(str(ask)), now)
+            if not (bid and ask):
+                continue
+            bid_d, ask_d = Decimal(str(bid)), Decimal(str(ask))
+            if bid_d <= 0 or ask_d <= 0 or bid_d > ask_d:
+                continue
+            self._prices[pair] = (bid_d, ask_d, now)
 
     def _to_signal(self, opp: ArbOpportunity) -> ArbSignal:
         legs = opp.legs
