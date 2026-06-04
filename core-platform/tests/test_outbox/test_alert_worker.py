@@ -142,3 +142,40 @@ async def test_multiple_entries_only_notifiable_posted():
             pass
 
     assert sess.post.call_count == 1
+
+
+async def test_http_url_only_posts_to_http_destination():
+    # With only http_url set, worker should fan out to the internal endpoint
+    # and NOT to Discord.
+    queue: OutboxQueue = asyncio.Queue()
+    worker = AlertWorker(queue=queue, http_url="http://api/internal/alert")
+    await queue.put(_make_entry("COMPLETE"))
+
+    sess = _mock_session()
+    await _run_worker_once(worker, sess)
+
+    sess.post.assert_called_once()
+    assert sess.post.call_args[0][0] == "http://api/internal/alert"
+
+
+async def test_both_destinations_each_receive_one_post():
+    queue: OutboxQueue = asyncio.Queue()
+    worker = AlertWorker(queue=queue, webhook_url=_WEBHOOK, http_url="http://api/internal/alert")
+    await queue.put(_make_entry("COMPLETE"))
+
+    sess = _mock_session()
+    await _run_worker_once(worker, sess)
+
+    # Two destinations → two POSTs for one entry.
+    assert sess.post.call_count == 2
+
+
+async def test_no_destinations_configured_skips_all_posts():
+    queue: OutboxQueue = asyncio.Queue()
+    worker = AlertWorker(queue=queue)
+    await queue.put(_make_entry("COMPLETE"))
+
+    sess = _mock_session()
+    await _run_worker_once(worker, sess)
+
+    sess.post.assert_not_called()

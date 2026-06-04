@@ -10,5 +10,8 @@ export interface Trade {
 
 export async function fetchTrades(limit = 50): Promise<Trade[]> {
   const res = await fetch(`/trades?limit=${limit}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} fetching /trades`);
+  }
   return res.json();
 }

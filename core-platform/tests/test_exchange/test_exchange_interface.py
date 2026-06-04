@@ -13,7 +13,7 @@ def _make_mock() -> ExchangeInterface:
         async def place_order(self, order):
             return OrderResult(id="mock-id", status=OrderStatus.PENDING)
 
-        async def cancel_order(self, order):
+        async def cancel_order(self, order_id, symbol):
             pass
 
         async def get_balance(self):

@@ -85,9 +85,29 @@ def test_signal_exchange():
 def test_signal_quantities():
     strategy = _strategy()
     [signal] = strategy.on_tickers(_ARB_TICKERS)
+    # leg1 always uses the configured base order quantity.
     assert signal.leg1_quantity == _QTY
-    assert signal.leg2_quantity == _QTY
-    assert signal.leg3_quantity == _QTY
+    # leg2/leg3 are propagated from the previous leg's output amount, so they
+    # generally differ from leg1 unless the cycle's prices happen to be 1.0.
+    assert signal.leg2_quantity > 0
+    assert signal.leg3_quantity > 0
+
+
+def test_signal_quantities_propagate_through_legs():
+    # The detected cycle uses BTC, ETH and USDT. Whichever direction Bellman-Ford
+    # picks, leg2/leg3 quantities should differ from leg1 because BTC/ETH/USDT
+    # exchange rates are far from 1.0 — so a naive "qty for every leg" would
+    # be detectably wrong. Specifically: if leg2 is the BTC↔ETH leg, its base
+    # quantity must scale by ~1/0.06 vs the BTC base.
+    strategy = _strategy()
+    [signal] = strategy.on_tickers(_ARB_TICKERS)
+
+    assert signal.leg1_quantity == _QTY
+    # leg2 and leg3 must NOT both equal leg1 — that was the C-2 bug.
+    assert not (signal.leg2_quantity == _QTY and signal.leg3_quantity == _QTY)
+    # All quantities must be strictly positive.
+    assert signal.leg2_quantity > 0
+    assert signal.leg3_quantity > 0
 
 
 def test_signal_expected_profit_positive():

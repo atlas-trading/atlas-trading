@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from decimal import Decimal
 
 from atlas.execution.order_status import OrderStatus
 
@@ -12,12 +13,12 @@ class OrderResult:
     side: str | None = None
     timestamp: int | None = None
     datetime: str | None = None
-    price: float | None = None
-    average: float | None = None
-    amount: float | None = None
-    filled: float | None = None
-    remaining: float | None = None
-    cost: float | None = None
+    price: Decimal | None = None
+    average: Decimal | None = None
+    amount: Decimal | None = None
+    filled: Decimal | None = None
+    remaining: Decimal | None = None
+    cost: Decimal | None = None
     client_order_id: str | None = None
     time_in_force: str | None = None
     post_only: bool | None = None

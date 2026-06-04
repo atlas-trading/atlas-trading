@@ -14,9 +14,9 @@ export function AlertFeed() {
       {alerts.length === 0 && (
         <p className="text-gray-400 text-sm">대기 중...</p>
       )}
-      {alerts.map((a, i) => (
+      {alerts.map((a) => (
         <div
-          key={i}
+          key={a.id}
           className={`text-sm px-3 py-1.5 rounded border ${BG[a.type] ?? "bg-gray-50 border-gray-200"}`}
         >
           <span className="font-mono text-xs text-gray-400">
