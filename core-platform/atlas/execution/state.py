@@ -154,7 +154,9 @@ class ArbitrageStateMachine:
                 f" ({float(signal.expected_profit / signal.leg1_quantity) * 100:.3f}%)"
             )
             await self._db_update_arb_status(
-                arb_id, "COMPLETE", actual_profit=signal.expected_profit
+                arb_id,
+                "COMPLETE",
+                actual_profit=self._actual_profit(signal, leg1, leg2, leg3),
             )
         except asyncio.CancelledError:
             # Honour cooperative cancellation: do NOT attempt to unwind here,
@@ -174,6 +176,33 @@ class ArbitrageStateMachine:
                 await self._db_update_arb_status(arb_id, "FAILED")
         finally:
             self.state = State.IDLE
+
+    def _actual_profit(
+        self,
+        signal: ArbSignal,
+        r1: OrderResult,
+        r2: OrderResult,
+        r3: OrderResult,
+    ) -> Decimal:
+        def _input_qty(result: OrderResult, planned: Decimal, side: Side) -> Decimal:
+            filled = Decimal(str(result.filled)) if result.filled is not None else planned
+            if side == Side.SELL:
+                return filled
+            cost = Decimal(str(result.cost)) if result.cost is not None else None
+            avg = Decimal(str(result.average)) if result.average is not None else Decimal("0")
+            return cost if cost is not None else filled * avg
+
+        def _output_qty(result: OrderResult, planned: Decimal, side: Side) -> Decimal:
+            filled = Decimal(str(result.filled)) if result.filled is not None else planned
+            if side == Side.BUY:
+                return filled
+            cost = Decimal(str(result.cost)) if result.cost is not None else None
+            avg = Decimal(str(result.average)) if result.average is not None else Decimal("0")
+            return cost if cost is not None else filled * avg
+
+        start = _input_qty(r1, signal.leg1_quantity, signal.leg1_side)
+        end = _output_qty(r3, signal.leg3_quantity, signal.leg3_side)
+        return end - start if start > 0 else signal.expected_profit
 
     async def _place(
         self,
