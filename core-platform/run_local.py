@@ -14,10 +14,12 @@
 """
 
 import asyncio
+import logging
 import os
 from decimal import Decimal
 
 from atlas.core.exchange import Exchange
+from atlas.events.bus import EventBus
 from atlas.exchange.binance import BinanceAdapter
 from atlas.execution.engine import ExecutionEngine
 from atlas.execution.state import ArbitrageStateMachine
@@ -31,7 +33,6 @@ from atlas.strategy.arbitrage.triangular import TriangularArbitrageStrategy
 VERBOSE = os.environ.get("VERBOSE", "1") == "1"
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
-ALERT_API_URL = os.environ.get("ALERT_API_URL", "http://localhost:8000/internal/alert")
 
 # 레그당 주문량 (BTC 기준 소수점). 테스트넷이라 0.001 BTC ≈ $50 수준으로 설정
 ORDER_QUANTITY = Decimal(os.environ.get("ORDER_QUANTITY", "0.001"))
@@ -39,11 +40,16 @@ MIN_PROFIT = Decimal(os.environ.get("MIN_PROFIT", "0.005"))  # 0.5% — 수수�
 
 
 async def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
     api_key = os.environ["BINANCE_TESTNET_API_KEY"]
     api_secret = os.environ["BINANCE_TESTNET_API_SECRET"]
 
     tick_queue: asyncio.Queue = asyncio.Queue()
     alert_queue: OutboxQueue = asyncio.Queue()
+    bus = EventBus()
 
     session_factory = None
     if DATABASE_URL:
@@ -54,7 +60,7 @@ async def main() -> None:
 
     adapter = BinanceAdapter(api_key=api_key, api_secret=api_secret, testnet=True)
 
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, tick_queue=tick_queue)
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
     strategy = TriangularArbitrageStrategy(
         exchange=Exchange.BINANCE,
         order_quantity=ORDER_QUANTITY,
@@ -63,10 +69,9 @@ async def main() -> None:
     state_machine = ArbitrageStateMachine(
         exchange=adapter, verbose=VERBOSE, session_factory=session_factory
     )
-    # USDT notional caps. 0.001 BTC ≈ $50 → per-leg cap $200 keeps test orders snug.
     risk_manager = RiskManager(
-        max_order_size=Decimal("200"),
-        max_exposure=Decimal("600"),
+        max_order_size=Decimal("0.01"),
+        max_exposure=Decimal("0.03"),
     )
     engine = ExecutionEngine(risk_manager=risk_manager, state_machine=state_machine)
     runner = LiveRunner(
@@ -78,17 +83,9 @@ async def main() -> None:
     )
 
     workers = []
-    # AlertWorker fans entries out to Discord (human) and/or the api-server
-    # internal endpoint (dashboard fan-out). Run it whenever either is set.
-    if DISCORD_WEBHOOK or ALERT_API_URL:
+    if DISCORD_WEBHOOK:
         workers.append(
-            asyncio.create_task(
-                AlertWorker(
-                    queue=alert_queue,
-                    webhook_url=DISCORD_WEBHOOK or None,
-                    http_url=ALERT_API_URL or None,
-                ).run()
-            )
+            asyncio.create_task(AlertWorker(queue=alert_queue, webhook_url=DISCORD_WEBHOOK).run())
         )
 
     pairs = strategy.all_pairs()
