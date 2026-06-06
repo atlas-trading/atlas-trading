@@ -82,7 +82,8 @@ def detect_arbitrage(
     total_log_rate = 0.0
 
     current = start
-    while True:
+    max_steps = n + 1  # a simple cycle visits at most n distinct nodes
+    for _ in range(max_steps):
         entry = pred[current]
         if entry is None:
             return None
@@ -92,6 +93,9 @@ def detect_arbitrage(
         current = prev_node
         if current == start:
             break
+    else:
+        # Cycle walk exceeded maximum expected length — pred chain is malformed.
+        return None
 
     legs.reverse()
     rate = Decimal(str(math.exp(total_log_rate)))

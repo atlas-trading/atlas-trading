@@ -19,7 +19,6 @@ import os
 from decimal import Decimal
 
 from atlas.core.exchange import Exchange
-from atlas.events.bus import EventBus
 from atlas.exchange.binance import BinanceAdapter
 from atlas.execution.engine import ExecutionEngine
 from atlas.execution.state import ArbitrageStateMachine
@@ -49,7 +48,6 @@ async def main() -> None:
 
     tick_queue: asyncio.Queue = asyncio.Queue()
     alert_queue: OutboxQueue = asyncio.Queue()
-    bus = EventBus()
 
     session_factory = None
     if DATABASE_URL:
@@ -60,14 +58,14 @@ async def main() -> None:
 
     adapter = BinanceAdapter(api_key=api_key, api_secret=api_secret, testnet=True)
 
-    feed = MarketDataFeed(exchange=Exchange.BINANCE, bus=bus, tick_queue=tick_queue)
+    feed = MarketDataFeed(exchange=Exchange.BINANCE, tick_queue=tick_queue)
     strategy = TriangularArbitrageStrategy(
         exchange=Exchange.BINANCE,
         order_quantity=ORDER_QUANTITY,
         min_profit=MIN_PROFIT,
     )
     state_machine = ArbitrageStateMachine(
-        exchange=adapter, verbose=VERBOSE, session_factory=session_factory
+        exchange=adapter, verbose=VERBOSE, session_factory=session_factory, outbox=alert_queue
     )
     risk_manager = RiskManager(
         max_order_size=Decimal("0.01"),

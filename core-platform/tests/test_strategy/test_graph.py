@@ -123,3 +123,35 @@ def test_arb_opportunity_is_frozen():
     assert result is not None
     with pytest.raises(Exception):
         result.rate = Decimal("1")  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Bug 6 regression: Bellman-Ford cycle walk must not loop forever
+# ---------------------------------------------------------------------------
+
+
+def test_cycle_walk_terminates_with_normal_input():
+    """detect_arbitrage must return within finite time for normal price inputs."""
+    from atlas.strategy.arbitrage.graph import detect_arbitrage
+
+    prices = {
+        TradingPair(ticker=Ticker.BTC, quote=Quote.USDT): (Decimal("50000"), Decimal("50000")),
+        TradingPair(ticker=Ticker.ETH, quote=Quote.BTC): (Decimal("0.06"), Decimal("0.06")),
+        TradingPair(ticker=Ticker.ETH, quote=Quote.USDT): (Decimal("3200"), Decimal("3200")),
+    }
+    result = detect_arbitrage(prices)
+    # Must return (not hang) — result may or may not find a cycle depending on fees
+    assert result is None or result.rate > 0
+
+
+def test_cycle_walk_terminates_with_no_arbitrage():
+    """No profitable cycle → returns None quickly, not an infinite loop."""
+    from atlas.strategy.arbitrage.graph import detect_arbitrage
+
+    prices = {
+        TradingPair(ticker=Ticker.BTC, quote=Quote.USDT): (Decimal("49990"), Decimal("50010")),
+        TradingPair(ticker=Ticker.ETH, quote=Quote.BTC): (Decimal("0.05990"), Decimal("0.06010")),
+        TradingPair(ticker=Ticker.ETH, quote=Quote.USDT): (Decimal("2990"), Decimal("3010")),
+    }
+    result = detect_arbitrage(prices)
+    assert result is None
