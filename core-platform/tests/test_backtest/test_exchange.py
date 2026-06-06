@@ -86,3 +86,8 @@ async def test_health_check_always_true():
 async def test_update_prices_ignores_unknown_symbols():
     ex = BacktestExchange(initial_balance={})
     ex.update_prices({"INVALID_SYM": {"bid": 1, "ask": 2}})  # should not raise
+
+
+async def test_get_usdt_balance():
+    ex = BacktestExchange(initial_balance={"USDT": Decimal("500")})
+    assert ex.get_usdt_balance() == Decimal("500")

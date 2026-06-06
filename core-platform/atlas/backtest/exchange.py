@@ -88,7 +88,9 @@ class BacktestExchange(ExchangeInterface):
     async def health_check(self) -> bool:
         return True
 
-    async def subscribe_ticker(self, trading_pairs: list, callback: TickerCallback) -> None:
+    async def subscribe_ticker(
+        self, trading_pairs: list[TradingPair], callback: TickerCallback
+    ) -> None:
         pass
 
     async def cancel_order(self, order_id: str, symbol: str) -> None:
