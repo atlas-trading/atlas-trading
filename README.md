@@ -13,7 +13,7 @@ atlas-trading/
 ├── api-server/         FastAPI 어드민 서버
 ├── web-dashboard/      React 어드민 대시보드
 ├── cluster-config/     K8s / ArgoCD
-├── infrastructure/     PostgreSQL + TimescaleDB, Redis, Prometheus
+├── infrastructure/     PostgreSQL + TimescaleDB docker-compose
 └── docs/
 ```
 
@@ -60,17 +60,54 @@ stateDiagram-v2
 
 | 단계 | 전략 | 상태 |
 |------|------|------|
-| Phase 1 | 삼각 차익거래 (Bellman-Ford) | 개발 중 |
+| Phase 1 | 삼각 차익거래 (Bellman-Ford) | **구현 완료** |
 | Phase 2 | 펀딩피 수익화 | 예정 |
 | Phase 3 | 옵션 매매 | 예정 |
 
 ## 시작하기
 
+### 의존성 설치
+
 ```bash
 cd core-platform
 uv venv && source .venv/bin/activate
-uv pip install -e .
+uv pip install -e ".[dev]"
 ```
+
+### 테스트 실행
+
+```bash
+cd core-platform
+uv run pytest          # 132개 테스트 (단위 + 통합)
+uv run ruff check .    # 린트
+```
+
+### 로컬 실행 (Binance Testnet)
+
+```bash
+# 인프라 시작 (PostgreSQL)
+cd infrastructure
+docker compose up -d
+
+# 트레이딩 엔진 실행
+cd core-platform
+BINANCE_TESTNET_API_KEY=<key> \
+BINANCE_TESTNET_API_SECRET=<secret> \
+DATABASE_URL=postgresql+asyncpg://atlas:atlas@localhost:5432/atlas \
+DISCORD_WEBHOOK=<optional> \
+uv run python run_local.py
+```
+
+주요 환경변수:
+| 변수 | 필수 | 설명 |
+|------|------|------|
+| `BINANCE_TESTNET_API_KEY` | ✅ | Binance testnet API 키 |
+| `BINANCE_TESTNET_API_SECRET` | ✅ | Binance testnet API secret |
+| `DATABASE_URL` | 선택 | PostgreSQL URL (없으면 DB 저장 생략) |
+| `DISCORD_WEBHOOK` | 선택 | Discord 알림 webhook URL |
+| `ORDER_QUANTITY` | 선택 | 레그당 주문량 (기본: 0.001 BTC) |
+| `MIN_PROFIT` | 선택 | 최소 수익 임계값 (기본: 0.5%) |
+| `VERBOSE` | 선택 | 상세 로그 출력 (기본: 1) |
 
 ## 문서
 
@@ -78,12 +115,13 @@ uv pip install -e .
 - [시스템 설계 스펙](docs/superpowers/specs/2026-05-31-atlas-trading-redesign.md)
 - [운영 가이드](docs/runbook.md)
 - [보안 정책](docs/security.md)
+- [모니터링](docs/MONITORING.md)
 
 ## 보안
 
 - API 키는 Kubernetes Sealed Secrets로 관리 (평문 금지)
 - 거래소 API 키에 출금 권한 절대 부여 금지
-- RiskManager Kill Switch: Redis 플래그로 전체 거래 즉시 중단 가능
+- RiskManager Kill Switch: `set_kill_switch(True)` 호출로 전체 거래 즉시 중단
 - Fail-Closed: 불확실하면 거래 중단
 
 ---

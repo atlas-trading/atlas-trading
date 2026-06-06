@@ -50,9 +50,6 @@ from typing import Optional, Dict, List, Tuple
 
 def get_user(user_id: int) -> Optional[Dict[str, str]]:
     pass
-
-def process_items(items: List[str]) -> Tuple[int, str]:
-    pass
 ```
 
 **매핑 표**:
@@ -68,25 +65,26 @@ def process_items(items: List[str]) -> Tuple[int, str]:
 
 ---
 
-### 3. 절대경로 사용
+### 3. Dataclass 규칙
 
-**규칙**: 상대경로 대신 **절대경로**를 사용합니다.
+**규칙**: 모든 dataclass는 `frozen=True, kw_only=True`로 선언합니다.
 
 ```python
 # ✅ GOOD
-from pathlib import Path
+@dataclass(frozen=True, kw_only=True)
+class Order:
+    id: str
+    quantity: Decimal
 
-CORE_PLATFORM_PATH = Path("/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform")
-ENV_PATH = Path("/Users/jang-yeonghwan/atlas-trading/atlas-trading/core-platform/.env")
+# 변경이 필요한 경우 replace() 사용
+new_order = dataclasses.replace(order, quantity=Decimal("0.5"))
 
-# ❌ BAD - 상대경로 사용
-env_path = Path(__file__).parent.parent / ".env"
+# ❌ BAD - mutable dataclass
+@dataclass
+class Order:
+    id: str
+    quantity: Decimal
 ```
-
-**적용 범위**:
-- 파일 시스템 경로
-- 모듈 import 경로 (sys.path 조작 시)
-- 환경 변수 파일 로딩
 
 ---
 
@@ -97,11 +95,15 @@ env_path = Path(__file__).parent.parent / ".env"
 - **최소 버전**: Python 3.12
 - 최신 언어 기능 적극 활용
 
+### 패키지 관리
+
+- **패키지 매니저**: uv (pip 직접 사용 금지)
+- `uv pip install -e ".[dev]"` 로 설치
+
 ### 코드 스타일
 
-- **Formatter**: Black (line-length=100)
-- **Linter**: Ruff
-- **Type Checker**: mypy
+- **Linter / Formatter**: Ruff (line-length=100)
+- **Type Checker**: mypy (선택)
 
 ### 명명 규칙
 
@@ -116,11 +118,12 @@ env_path = Path(__file__).parent.parent / ".env"
 
 ```
 atlas-trading/
-├── core-platform/       # 백테스팅 엔진
+├── core-platform/       # 트레이딩 엔진 (Python asyncio)
 ├── api-server/          # FastAPI 백엔드
-├── web-dashboard/       # React 프론트엔드
-├── cluster-config/      # k8s 설정 (추후)
-└── CODING_STANDARDS.md  # 이 문서
+├── web-dashboard/       # React + Vite 프론트엔드
+├── cluster-config/      # k8s / ArgoCD 설정
+├── infrastructure/      # docker-compose (PostgreSQL, Prometheus 등)
+└── docs/                # 설계 문서
 ```
 
 ---
@@ -128,6 +131,4 @@ atlas-trading/
 ## 🔄 업데이트 기록
 
 - 2026-02-15: 초기 작성
-  - FastAPI response dataclass 규칙
-  - 타입 힌팅 내장 타입 사용
-  - 절대경로 사용 규칙
+- 2026-06-06: Dataclass 규칙 추가, uv 패키지 매니저 명시, 프로젝트 구조 갱신
