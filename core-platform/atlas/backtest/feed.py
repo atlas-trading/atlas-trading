@@ -28,7 +28,10 @@ class HistoricalFeed:
             current_group: dict[str, Any] = {}
 
             async for tick in result.scalars():
-                ts = tick.timestamp.replace(tzinfo=timezone.utc)
+                if tick.timestamp.tzinfo is None:
+                    ts = tick.timestamp.replace(tzinfo=timezone.utc)
+                else:
+                    ts = tick.timestamp.astimezone(timezone.utc)
                 if current_ts is None:
                     current_ts = ts
                 if ts != current_ts:
