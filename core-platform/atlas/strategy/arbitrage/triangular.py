@@ -98,6 +98,16 @@ class TriangularArbitrageStrategy:
         if len(legs) != 3:
             raise ValueError(f"Expected 3-leg opportunity, got {len(legs)}")
         q1, q2, q3 = self._compute_quantities(legs, self._order_quantity)
+
+        # expected_profit must be in the cycle-start currency.
+        # For BUY leg1: order q1 units of base by spending q1*ask of quote.
+        #   → input capital = q1 * ask  (the quote currency actually committed)
+        # For SELL leg1: spend q1 units of base directly.
+        #   → input capital = q1
+        prev_pair, prev_side = legs[0]
+        _, prev_ask, _ = self._prices[prev_pair]
+        input_capital = q1 * prev_ask if prev_side == Side.BUY else q1
+
         return ArbSignal(
             exchange=self._exchange,
             leg1_pair=legs[0][0],
@@ -109,7 +119,7 @@ class TriangularArbitrageStrategy:
             leg3_pair=legs[2][0],
             leg3_side=legs[2][1],
             leg3_quantity=q3,
-            expected_profit=q1 * (opp.rate - 1),
+            expected_profit=input_capital * (opp.rate - 1),
         )
 
     def _compute_quantities(
