@@ -202,7 +202,7 @@ class ArbitrageStateMachine:
 
         start = _input_qty(r1, signal.leg1_quantity, signal.leg1_side)
         end = _output_qty(r3, signal.leg3_quantity, signal.leg3_side)
-        return end - start if start > 0 else signal.expected_profit
+        return end - start if start > 0 else Decimal("0")
 
     async def _place(
         self,
