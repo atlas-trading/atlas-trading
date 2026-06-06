@@ -93,6 +93,19 @@ def test_signal_quantities():
     assert signal.leg3_quantity > 0
 
 
+def test_signal_quantities_propagate_through_legs():
+    # leg2/leg3 quantities must differ from leg1 because BTC/ETH/USDT rates are
+    # far from 1.0 — a naive "same qty every leg" would be detectably wrong.
+    strategy = _strategy()
+    [signal] = strategy.on_tickers(_ARB_TICKERS)
+
+    assert signal.leg1_quantity == _QTY
+    # leg2 and leg3 must NOT both equal leg1 — that was the C-2 bug.
+    assert not (signal.leg2_quantity == _QTY and signal.leg3_quantity == _QTY)
+    assert signal.leg2_quantity > 0
+    assert signal.leg3_quantity > 0
+
+
 def test_signal_expected_profit_positive():
     strategy = _strategy()
     [signal] = strategy.on_tickers(_ARB_TICKERS)

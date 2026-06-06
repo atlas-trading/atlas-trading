@@ -104,6 +104,15 @@ def test_no_arb_when_all_rates_exactly_one():
     assert detect_arbitrage(prices) is None
 
 
+def test_disconnected_one_way_pair_does_not_index_error():
+    # Single pair with only ask>0 (no bid) used to trigger pred[node][0] IndexError
+    # because dist[] was uniformly 0.0 and any negative weight could mark a node
+    # whose pred chain was None. Now we rely on a virtual-source initialisation,
+    # so a one-way single edge cannot form a cycle and should return None cleanly.
+    pair = TradingPair(ticker=Ticker.BTC, quote=Quote.USDT)
+    assert detect_arbitrage({pair: _p("0", "50000")}) is None
+
+
 def test_arb_opportunity_is_frozen():
     prices = {
         _BTC_USDT: _p("50000", "50000"),
