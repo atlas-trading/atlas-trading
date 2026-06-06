@@ -19,7 +19,10 @@ class ArbOpportunity:
     rate: Decimal  # product of rates across all legs; > 1 means profit
 
 
-def detect_arbitrage(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> ArbOpportunity | None:
+def detect_arbitrage(
+    prices: dict[TradingPair, tuple[Decimal, Decimal]],
+    taker_fee: Decimal = Decimal("0.001"),
+) -> ArbOpportunity | None:
     """
     Bellman-Ford negative cycle detection on the currency exchange graph.
 
@@ -33,14 +36,13 @@ def detect_arbitrage(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> ArbO
     if not prices:
         return None
 
-    edges = _build_edges(prices)
+    edges = _build_edges(prices, taker_fee)
     if not edges:
         return None
 
     nodes = sorted({u for u, *_ in edges} | {v for _, v, *_ in edges})
     n = len(nodes)
 
-    # virtual source: dist=0 here, +inf everywhere else, gets relaxed to 0 in pass 1
     dist: dict[str, float] = {node: 0.0 for node in nodes}
     pred: dict[str, _PredEntry | None] = {node: None for node in nodes}
 
@@ -96,15 +98,19 @@ def detect_arbitrage(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> ArbO
     return ArbOpportunity(legs=tuple(legs), rate=rate)
 
 
-def _build_edges(prices: dict[TradingPair, tuple[Decimal, Decimal]]) -> list[_Edge]:
+def _build_edges(
+    prices: dict[TradingPair, tuple[Decimal, Decimal]],
+    taker_fee: Decimal = Decimal("0.001"),
+) -> list[_Edge]:
+    fee_cost = -math.log(1.0 - float(taker_fee))  # ≈ 0.0010005 for 0.1%
     edges: list[_Edge] = []
     for pair, (bid, ask) in prices.items():
         if bid <= 0 or ask <= 0 or bid > ask:
-            continue  # reject crossed book and invalid prices
+            continue
         base = str(pair.ticker)
         quote = str(pair.quote)
-        # BUY base with quote: 1 quote → 1/ask base. log(1/ask) = -log(ask) → weight=+log(ask)
-        edges.append((quote, base, math.log(float(ask)), pair, Side.BUY))
-        # SELL base for quote: 1 base → bid quote. log(bid) → weight=-log(bid)
-        edges.append((base, quote, -math.log(float(bid)), pair, Side.SELL))
+        # BUY: 1 quote → (1/ask)*(1-fee) base. weight = log(ask) + fee_cost
+        edges.append((quote, base, math.log(float(ask)) + fee_cost, pair, Side.BUY))
+        # SELL: 1 base → bid*(1-fee) quote. weight = -log(bid) + fee_cost
+        edges.append((base, quote, -math.log(float(bid)) + fee_cost, pair, Side.SELL))
     return edges
