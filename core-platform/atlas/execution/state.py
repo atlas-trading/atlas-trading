@@ -12,6 +12,7 @@ from atlas.execution.arb_signal import ArbSignal
 from atlas.execution.order import Order
 from atlas.execution.order_type import OrderType
 from atlas.execution.side import Side
+from atlas.outbox.queue import OutboxEntry, OutboxEntryType
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -44,6 +45,7 @@ class ArbitrageStateMachine:
         leg3_timeout: float = _LEG3_TIMEOUT,
         verbose: bool = False,
         session_factory: "async_sessionmaker | None" = None,
+        outbox: "asyncio.Queue[OutboxEntry] | None" = None,
     ) -> None:
         self._exchange = exchange
         self._leg1_timeout = leg1_timeout
@@ -51,18 +53,48 @@ class ArbitrageStateMachine:
         self._leg3_timeout = leg3_timeout
         self._verbose = verbose
         self._session_factory = session_factory
+        self._outbox = outbox
         self.state = State.IDLE
 
     def _log(self, msg: str) -> None:
         if self._verbose:
             _log.info(msg)
 
+    def _fire_db(self, coro: object) -> None:
+        """Schedule a DB write as a background task so it does not block the hot path."""
+        if self._session_factory is None:
+            # No session factory — close the coroutine to suppress 'never awaited' warnings.
+            import inspect
+
+            if inspect.iscoroutine(coro):
+                coro.close()  # type: ignore[union-attr]
+            return
+
+        async def _guarded() -> None:
+            try:
+                await coro  # type: ignore[misc]
+            except Exception:
+                _log.exception("[STATE] background DB write failed")
+
+        asyncio.create_task(_guarded())
+
+    def _enqueue_outbox(self, arb_id: str, state: str, net_pnl: Decimal | None = None) -> None:
+        """Put a TRADE_RESULT notification on the outbox for AlertWorker."""
+        if self._outbox is None:
+            return
+        payload: dict[str, str] = {"state": state, "arb_id": arb_id}
+        if net_pnl is not None:
+            payload["net_pnl"] = str(net_pnl)
+        self._outbox.put_nowait(
+            OutboxEntry(entry_type=OutboxEntryType.TRADE_RESULT, payload=payload)
+        )
+
     async def start(self, signal: ArbSignal) -> None:
         if self.state != State.IDLE:
             return
 
         arb_id = str(uuid.uuid4())
-        await self._db_create_arb(arb_id, signal)
+        self._fire_db(self._db_create_arb(arb_id, signal))
 
         leg1: OrderResult | None = None
         leg2: OrderResult | None = None
@@ -82,14 +114,17 @@ class ArbitrageStateMachine:
             )
             if leg1 is None:
                 self._log("[LEG1] TIMEOUT → IDLE")
-                await self._db_update_arb_status(arb_id, "TIMEOUT")
+                self._fire_db(self._db_update_arb_status(arb_id, "TIMEOUT"))
+                self._enqueue_outbox(arb_id, "TIMEOUT")
                 return
             self._log(f"[LEG1] FILLED avg={leg1.average}")
-            await self._db_save_order(
-                arb_id, leg1, signal, signal.leg1_pair, signal.leg1_side, signal.leg1_quantity
+            self._fire_db(
+                self._db_save_order(
+                    arb_id, leg1, signal, signal.leg1_pair, signal.leg1_side, signal.leg1_quantity
+                )
             )
             self.state = State.LEG1_FILLED
-            await self._db_update_arb_status(arb_id, "LEG1_FILLED")
+            self._fire_db(self._db_update_arb_status(arb_id, "LEG1_FILLED"))
 
             # Propagate actual fill: scale subsequent legs by how much leg1 actually filled.
             fill1 = leg1.filled if leg1.filled is not None else signal.leg1_quantity
@@ -110,15 +145,18 @@ class ArbitrageStateMachine:
                 self._log("[LEG2] TIMEOUT → UNWIND")
                 self.state = State.UNWINDING
                 await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
-                await self._db_update_arb_status(arb_id, "UNWIND_COMPLETE")
+                self._fire_db(self._db_update_arb_status(arb_id, "UNWIND_COMPLETE"))
+                self._enqueue_outbox(arb_id, "UNWIND_COMPLETE")
                 self.state = State.UNWIND_COMPLETE
                 return
             self._log(f"[LEG2] FILLED avg={leg2.average}")
-            await self._db_save_order(
-                arb_id, leg2, signal, signal.leg2_pair, signal.leg2_side, leg2_qty
+            self._fire_db(
+                self._db_save_order(
+                    arb_id, leg2, signal, signal.leg2_pair, signal.leg2_side, leg2_qty
+                )
             )
             self.state = State.LEG2_FILLED
-            await self._db_update_arb_status(arb_id, "LEG2_FILLED")
+            self._fire_db(self._db_update_arb_status(arb_id, "LEG2_FILLED"))
 
             # Scale leg3 by how much leg2 actually filled relative to what was ordered.
             fill2 = leg2.filled if leg2.filled is not None else leg2_qty
@@ -140,24 +178,27 @@ class ArbitrageStateMachine:
                 self.state = State.UNWINDING
                 await self._unwind(signal, signal.leg2_pair, signal.leg2_side, leg2)
                 await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
-                await self._db_update_arb_status(arb_id, "UNWIND_COMPLETE")
+                self._fire_db(self._db_update_arb_status(arb_id, "UNWIND_COMPLETE"))
+                self._enqueue_outbox(arb_id, "UNWIND_COMPLETE")
                 self.state = State.UNWIND_COMPLETE
                 return
             self._log(f"[LEG3] FILLED avg={leg3.average}")
-            await self._db_save_order(
-                arb_id, leg3, signal, signal.leg3_pair, signal.leg3_side, leg3_qty
+            self._fire_db(
+                self._db_save_order(
+                    arb_id, leg3, signal, signal.leg3_pair, signal.leg3_side, leg3_qty
+                )
             )
 
             self.state = State.COMPLETE
+            actual_profit = self._actual_profit(signal, leg1, leg2, leg3)
             self._log(
                 f"[COMPLETE] expected_profit={signal.expected_profit:.6f}"
-                f" ({float(signal.expected_profit / signal.leg1_quantity) * 100:.3f}%)"
+                f" actual_profit={actual_profit:.6f}"
             )
-            await self._db_update_arb_status(
-                arb_id,
-                "COMPLETE",
-                actual_profit=self._actual_profit(signal, leg1, leg2, leg3),
+            self._fire_db(
+                self._db_update_arb_status(arb_id, "COMPLETE", actual_profit=actual_profit)
             )
+            self._enqueue_outbox(arb_id, "COMPLETE", net_pnl=actual_profit)
         except asyncio.CancelledError:
             # Honour cooperative cancellation: do NOT attempt to unwind here,
             # because the runtime is tearing the loop down.
@@ -170,10 +211,12 @@ class ArbitrageStateMachine:
                     await self._unwind(signal, signal.leg2_pair, signal.leg2_side, leg2)
                 if leg1 is not None:
                     await self._unwind(signal, signal.leg1_pair, signal.leg1_side, leg1)
-                await self._db_update_arb_status(arb_id, "UNWIND_COMPLETE")
+                self._fire_db(self._db_update_arb_status(arb_id, "UNWIND_COMPLETE"))
+                self._enqueue_outbox(arb_id, "UNWIND_COMPLETE")
             except Exception:
                 _log.exception("[STATE] unwind also failed")
-                await self._db_update_arb_status(arb_id, "FAILED")
+                self._fire_db(self._db_update_arb_status(arb_id, "FAILED"))
+                self._enqueue_outbox(arb_id, "FAILED")
         finally:
             self.state = State.IDLE
 
