@@ -56,6 +56,8 @@ class BinanceAdapter(ExchangeInterface):
     async def subscribe_ticker(
         self, trading_pairs: list[TradingPair], callback: TickerCallback
     ) -> None:
+        # Capture the Task running this coroutine so close() can cancel it.
+        self._subscribe_task = asyncio.current_task()
         symbols: list[str] = [to_ccxt_symbol(pair) for pair in trading_pairs]
         self._running = True
 
