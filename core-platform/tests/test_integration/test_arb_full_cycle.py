@@ -113,24 +113,16 @@ async def test_full_cycle_emits_signal_and_places_three_orders():
 
 async def test_full_cycle_quantities_chain_correctly():
     """
-    The quantity output of leg N (in shared currency) must equal the input
-    of leg N+1. The chain semantics are direction-independent, so we re-derive
-    the expected sequence from the actually emitted sides.
+    The quantity output of leg N (after taker fee) must equal the input of leg N+1.
+    We re-derive the expected sequence from the actually emitted sides, factoring
+    in the 0.1% taker fee deducted on each fill.
     """
+    fee = Decimal("0.001")
     exchange = _ScriptedExchange([])
     strategy, _, sm = _build_stack(exchange)
     [signal] = strategy.on_tickers(_ARB_TICKERS)
     await sm.start(signal)
 
-    # For the BTC-ETH-USDT triangle with ETH/USDT overpriced at 3200 (fair 3000),
-    # detect_arbitrage picks: SELL ETH/USDT → BUY BTC/USDT → BUY ETH/BTC
-    # i.e. ETH → USDT → BTC → ETH (close the loop).
-    #   leg1: SELL 0.01 ETH @ 3200 USDT/ETH → receive 32 USDT
-    #   leg2: BUY 32 USDT / 50000 BTC/USDT  = 0.00064 BTC
-    #   leg3: BUY 0.00064 BTC / 0.06 ETH/BTC = 0.01066... ETH
-    # Round-trip: started with 0.01 ETH, ended with 0.01066 ETH → ~6.67% profit.
-
-    # Validate quantities by re-deriving the chain from the actual side sequence.
     legs = (
         (signal.leg1_pair, signal.leg1_side, signal.leg1_quantity),
         (signal.leg2_pair, signal.leg2_side, signal.leg2_quantity),
@@ -141,14 +133,14 @@ async def test_full_cycle_quantities_chain_correctly():
         _ETH_BTC: Decimal("0.06"),
         _ETH_USDT: Decimal("3200"),
     }
-    # Compute expected qty[i+1] from emitted qty[i] using leg-side semantics.
+    # Re-derive expected qty[i+1] with fee deduction applied on the output of leg i.
     for i in range(2):
         pair_i, side_i, q_i = legs[i]
         pair_n, side_n, q_n_actual = legs[i + 1]
         p_i = prices[pair_i]
-        # leg i output amount (in shared currency between legs):
-        out = q_i if side_i == Side.BUY else q_i * p_i
-        # leg i+1 expected input → expected base-asset qty
+        # leg i output amount after fee (BUY: base*(1-fee), SELL: base*bid*(1-fee))
+        out = q_i * (1 - fee) if side_i == Side.BUY else q_i * p_i * (1 - fee)
+        # leg i+1 expected base-asset qty (BUY: out/ask, SELL: out)
         p_n = prices[pair_n]
         expected_q_next = out / p_n if side_n == Side.BUY else out
         diff = abs(q_n_actual - expected_q_next)
@@ -165,41 +157,27 @@ async def test_full_cycle_quantities_chain_correctly():
 
 async def test_fee_threshold_signal_emitted_but_unprofitable_after_fees():
     """
-    BUG / known-gap: detect_arbitrage and min_profit don't account for taker
-    fees. A 0.3% nominal-profit triangle still passes a default min_profit=0.2%
-    threshold, but after 3x0.1% taker fees the trade loses money.
+    Fee-aware rejection: a ~0.3% nominal-profit triangle is correctly rejected
+    once taker fees are included in the Bellman-Ford edge weights.
+
+    The gross rate was ≈1.003, but 3 legs × 0.1% taker fee ≈ 0.3% cost means
+    the net rate falls below 1.0 — no real profit. detect_arbitrage now returns
+    None for this price set, so no signal is emitted.
     """
     exchange = _ScriptedExchange([])
-    strategy, risk, _ = _build_stack(exchange, min_profit=Decimal("0.002"))
+    strategy, _, _ = _build_stack(exchange, min_profit=Decimal("0.002"))
 
-    # Construct a price set with ~0.3% nominal arb (just above min_profit
-    # threshold but below total taker fees of ~0.3%).
     barely_profitable = {
         "BTC/USDT": {"bid": 50000, "ask": 50000},
         "ETH/BTC": {"bid": 0.06, "ask": 0.06},
-        "ETH/USDT": {"bid": 3009, "ask": 3009},  # 0.3% above fair
+        "ETH/USDT": {"bid": 3009, "ask": 3009},  # ~0.3% above fair 3000
     }
     signals = strategy.on_tickers(barely_profitable)
-    # Strategy emits a signal because min_profit ignores fees.
-    assert len(signals) == 1, (
-        "Strategy did not emit signal on 0.3% nominal arb — unexpected; "
-        "review whether min_profit logic changed."
+    # Fee-aware graph correctly finds no profitable cycle.
+    assert len(signals) == 0, (
+        f"Strategy emitted {len(signals)} signal(s) on a barely-profitable arb "
+        "that fees should eliminate."
     )
-    # The post-fee profit:
-    fee = Decimal("0.001")
-    nominal = signals[0].expected_profit  # in BTC (leg1 base units)
-    # 3-leg taker fee absorbs the arb: realised profit ≈ negative
-    # We can't easily compute exact after-fee profit without simulating the
-    # full chain; instead assert that no fee model exists in either the
-    # strategy or the risk manager.
-    assert risk.check(signals[0]) == RiskDecision.APPROVED, (
-        "Risk manager rejected — unexpected; it doesn't model fees either."
-    )
-    # If you want a fee-aware strategy, replace this assertion with a
-    # threshold check.  Currently the gap is: nominal > 0 but realised < 0.
-    after_fee_rate_drop = (Decimal("1") - fee) ** 3
-    assert nominal > 0
-    assert after_fee_rate_drop < Decimal("0.998")  # ~0.3% drop
 
 
 # --------------------------------------------------------------------------- #

@@ -346,11 +346,11 @@ def test_compute_quantities_buy_sell_buy_cycle():
 
 def test_compute_quantities_consistent_with_round_trip():
     """
-    Quantities should chain: output of leg N feeds input of leg N+1, applied
-    via the appropriate side semantics. We reconstruct the chain from the
-    *actually emitted* sides so the test is direction-agnostic (Bellman-Ford
-    may pick either rotation of the same cycle).
+    Quantities should chain: fee-adjusted output of leg N feeds input of leg N+1.
+    BUY output = base_qty*(1-fee), SELL output = base_qty*bid*(1-fee). The next
+    leg's base-asset qty = output/ask (BUY) or output (SELL).
     """
+    fee = Decimal("0.001")
     strategy = _strategy()
     [signal] = strategy.on_tickers(
         {
@@ -368,7 +368,6 @@ def test_compute_quantities_consistent_with_round_trip():
     # All three quantities must be strictly positive.
     assert all(q > 0 for *_, q in legs)
 
-    # Re-derive expected qty[i+1] from emitted qty[i] using side semantics.
     prices = {
         _BTC_USDT: Decimal("50000"),
         _ETH_BTC: Decimal("0.06"),
@@ -378,7 +377,8 @@ def test_compute_quantities_consistent_with_round_trip():
         pair_i, side_i, q_i = legs[i]
         pair_n, side_n, q_n_actual = legs[i + 1]
         p_i = prices[pair_i]
-        out = q_i if side_i == Side.BUY else q_i * p_i
+        # fee-adjusted output of leg i
+        out = q_i * (1 - fee) if side_i == Side.BUY else q_i * p_i * (1 - fee)
         p_n = prices[pair_n]
         expected_q_next = out / p_n if side_n == Side.BUY else out
         assert abs(q_n_actual - expected_q_next) < Decimal("0.0001"), (
@@ -416,29 +416,21 @@ def test_zero_ask_breaks_input_to_base_qty():
 
 def test_fees_not_accounted_for_in_rate():
     """
-    The current rate ignores trading fees. A 0.1% Binance taker fee per leg
-    means the realised round-trip rate is rate * (1 - 0.001)^3 ≈ rate * 0.997.
-    A 0.3% nominal profit thus becomes near-zero after fees.
+    Fee-aware Bellman-Ford correctly rejects a ~0.3% gross arb that is unprofitable
+    after 3 legs × 0.1% taker fee.
 
-    BUG: min_profit must account for fees, but detect_arbitrage doesn't. The
-    strategy can emit signals that lose money after fees.
+    With fees baked into edge weights, a 0.3% gross cycle yields a net rate < 1.0
+    and detect_arbitrage returns None — no false-positive signal.
     """
-    fee_per_leg = Decimal("0.001")
-    # Construct a triangle with exactly 0.3% nominal arb — below 3 legs × 0.1% fee.
+    # Construct a triangle with ~0.3% gross arb — less than 3 × 0.1% taker fee.
     prices = {
         _BTC_USDT: _p("50000", "50000"),
         _ETH_BTC: _p("0.06", "0.06"),
-        _ETH_USDT: _p("3009", "3009"),  # fair = 3000, so 0.3% arb
+        _ETH_USDT: _p("3009", "3009"),  # fair = 3000, so ~0.3% gross arb
     }
     result = detect_arbitrage(prices)
-    assert result is not None
-    nominal_profit = result.rate - 1
-    # After fees, this is barely profitable or unprofitable.
-    after_fees = (result.rate * (1 - fee_per_leg) ** 3) - 1
-    # Document the gap: nominal looks good, but after fees may be < 0.
-    assert nominal_profit > 0
-    # The current strategy with min_profit=0.002 would emit this signal even
-    # though after_fees ≈ 0. Flag this as a known false-positive.
-    assert nominal_profit < Decimal("0.005"), (
-        f"Nominal profit {nominal_profit} crosses fee threshold; after-fee profit ≈ {after_fees}"
+    # Fee-aware graph finds no profitable cycle: gross profit ≈ fees.
+    assert result is None, (
+        f"detect_arbitrage returned rate={result.rate if result else None} for a "
+        "barely-profitable arb that fees should eliminate."
     )
