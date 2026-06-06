@@ -39,10 +39,12 @@ class TriangularArbitrageStrategy:
         exchange: Exchange,
         order_quantity: Decimal,
         min_profit: Decimal = Decimal("0.002"),
+        taker_fee: Decimal = Decimal("0.001"),
     ) -> None:
         self._exchange = exchange
         self._order_quantity = order_quantity
         self._min_profit = min_profit
+        self._taker_fee = taker_fee
         # Cached prices keyed by pair: (bid, ask, monotonic_timestamp)
         self._prices: dict[TradingPair, tuple[Decimal, Decimal, float]] = {}
 
@@ -69,7 +71,7 @@ class TriangularArbitrageStrategy:
             }
             if len(fresh) < len(triangle):
                 continue
-            opp = detect_arbitrage(fresh)
+            opp = detect_arbitrage(fresh, taker_fee=self._taker_fee)
             if opp is not None and opp.rate - 1 >= self._min_profit:
                 signals.append(self._to_signal(opp))
         return signals
@@ -119,8 +121,8 @@ class TriangularArbitrageStrategy:
         Propagate the realised output of each leg into the input quantity of the next.
 
         For ccxt-style spot pairs, `quantity` is always in base-asset units.
-        - BUY at ask: spend (qty * ask) of quote, receive qty of base.
-        - SELL at bid: spend qty of base, receive (qty * bid) of quote.
+        - BUY at ask: spend (qty * ask) of quote, receive qty*(1-fee) of base.
+        - SELL at bid: spend qty of base, receive qty*bid*(1-fee) of quote.
 
         The graph cycle is constructed so the output currency of leg i equals the
         input currency of leg i+1. The output amount of leg i — denominated in that
@@ -130,17 +132,13 @@ class TriangularArbitrageStrategy:
         q1 = base_qty
         prev_pair, prev_side = legs[0]
         prev_bid, prev_ask, _ = self._prices[prev_pair]
-        # leg1 input is base_qty in `prev_pair.ticker` units (the convention of base_qty).
-        # Compute the output currency-amount leg1 produces.
-        output_amount = self._leg_output_amount(prev_side, q1, prev_bid, prev_ask)
+        output_amount = self._leg_output_amount(prev_side, q1, prev_bid, prev_ask, self._taker_fee)
 
-        # leg2 quantity in base-asset units of leg2's pair.
         cur_pair, cur_side = legs[1]
         cur_bid, cur_ask, _ = self._prices[cur_pair]
         q2 = self._input_to_base_qty(cur_side, output_amount, cur_bid, cur_ask)
-        output_amount = self._leg_output_amount(cur_side, q2, cur_bid, cur_ask)
+        output_amount = self._leg_output_amount(cur_side, q2, cur_bid, cur_ask, self._taker_fee)
 
-        # leg3 quantity in base-asset units of leg3's pair.
         cur_pair, cur_side = legs[2]
         cur_bid, cur_ask, _ = self._prices[cur_pair]
         q3 = self._input_to_base_qty(cur_side, output_amount, cur_bid, cur_ask)
@@ -148,21 +146,25 @@ class TriangularArbitrageStrategy:
         return q1, q2, q3
 
     @staticmethod
-    def _leg_output_amount(side: Side, base_qty: Decimal, bid: Decimal, ask: Decimal) -> Decimal:
-        # BUY pays quote, receives base → output currency = base, amount = base_qty.
-        # SELL pays base, receives quote → output currency = quote, amount = base_qty * bid.
+    def _leg_output_amount(
+        side: Side,
+        base_qty: Decimal,
+        bid: Decimal,
+        ask: Decimal,
+        taker_fee: Decimal,
+    ) -> Decimal:
+        # BUY pays quote, receives base*(1-fee) → output = base_qty*(1-fee)
+        # SELL pays base, receives quote*(1-fee) → output = base_qty*bid*(1-fee)
         if side == Side.BUY:
-            return base_qty
-        return base_qty * bid
+            return base_qty * (1 - taker_fee)
+        return base_qty * bid * (1 - taker_fee)
 
     @staticmethod
     def _input_to_base_qty(
         side: Side, input_amount: Decimal, bid: Decimal, ask: Decimal
     ) -> Decimal:
-        # BUY's input is denominated in quote (we spend `input_amount` quote).
-        #   base qty received = input_amount / ask, so the order quantity = input_amount / ask.
-        # SELL's input is denominated in base (we sell `input_amount` base).
-        #   order quantity = input_amount.
+        # BUY's input is denominated in quote: base qty = input_amount / ask
+        # SELL's input is denominated in base: order qty = input_amount
         if side == Side.BUY:
             return input_amount / ask
         return input_amount
