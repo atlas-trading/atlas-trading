@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Integer, Numeric, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -76,3 +76,32 @@ class TradeResult(Base):
     pnl: Mapped[Decimal] = mapped_column(Numeric(20, 8))
     fee: Mapped[Decimal] = mapped_column(Numeric(20, 8))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class BacktestRun(Base):
+    __tablename__ = "backtest_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    initial_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    final_balance: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    order_qty: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    min_profit: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    slippage: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BacktestTrade(Base):
+    __tablename__ = "backtest_trades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(Integer, ForeignKey("backtest_runs.id"), index=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    arb_id: Mapped[str] = mapped_column(String(100))
+    leg1_pair: Mapped[str] = mapped_column(String(20))
+    leg2_pair: Mapped[str] = mapped_column(String(20))
+    leg3_pair: Mapped[str] = mapped_column(String(20))
+    expected_profit: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    actual_profit: Mapped[Decimal | None] = mapped_column(Numeric(20, 8), nullable=True)
+    status: Mapped[str] = mapped_column(String(20))

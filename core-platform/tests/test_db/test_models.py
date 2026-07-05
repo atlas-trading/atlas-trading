@@ -28,3 +28,15 @@ def test_model_table_names():
     assert OrderRecord.__tablename__ == "orders"
     assert ArbAttempt.__tablename__ == "arb_attempts"
     assert TradeResult.__tablename__ == "trade_results"
+
+
+def test_backtest_run_tablename():
+    from atlas.db.models import BacktestRun
+
+    assert BacktestRun.__tablename__ == "backtest_runs"
+
+
+def test_backtest_trade_tablename():
+    from atlas.db.models import BacktestTrade
+
+    assert BacktestTrade.__tablename__ == "backtest_trades"
