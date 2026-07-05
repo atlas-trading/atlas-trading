@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
+      "/backtests": "http://localhost:8000",
       "/trades": "http://localhost:8000",
       "/positions": "http://localhost:8000",
       "/ws": { target: "ws://localhost:8000", ws: true },
