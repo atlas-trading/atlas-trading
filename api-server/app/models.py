@@ -4,6 +4,6 @@ schema (column types, indexes, foreign keys) stays in lockstep with the
 state machine and Alembic migrations.
 """
 
-from atlas.db.models import ArbAttempt, OrderRecord
+from atlas.db.models import ArbAttempt, BacktestRun, BacktestTrade, OrderRecord
 
-__all__ = ["ArbAttempt", "OrderRecord"]
+__all__ = ["ArbAttempt", "BacktestRun", "BacktestTrade", "OrderRecord"]
