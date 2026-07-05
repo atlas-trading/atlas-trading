@@ -61,7 +61,7 @@ class BacktestRunner:
             if entry.entry_type != OutboxEntryType.TRADE_RESULT:
                 continue
             p = entry.payload
-            net_pnl = Decimal(p["net_pnl"]) if p.get("net_pnl") else None
+            net_pnl = Decimal(p["net_pnl"]) if p.get("net_pnl") is not None else None
             self._records.append(
                 TradeRecord(
                     timestamp=ts,
