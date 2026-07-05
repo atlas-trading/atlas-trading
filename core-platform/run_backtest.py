@@ -26,6 +26,7 @@ from atlas.backtest.feed import HistoricalFeed
 from atlas.backtest.fetcher import BinanceVisionFetcher
 from atlas.backtest.report import BacktestSummary, print_summary, to_csv
 from atlas.backtest.runner import BacktestRunner
+from atlas.backtest.store import save_run
 from atlas.core.exchange import Exchange
 from atlas.db.connection import create_engine, create_session_factory
 from atlas.risk.manager import RiskManager
@@ -65,6 +66,7 @@ async def main() -> None:
         print(f"[FETCH] {inserted:,}행 적재 완료")
 
     initial_usdt = Decimal(args.initial_balance)
+    slippage = Decimal("0.0005")
     exchange = BacktestExchange(
         initial_balance={
             "USDT": initial_usdt,
@@ -73,6 +75,7 @@ async def main() -> None:
             "BNB": Decimal("0"),
             "XRP": Decimal("0"),
         },
+        slippage=slippage,
     )
     feed = HistoricalFeed(session_factory)
     strategy = TriangularArbitrageStrategy(
@@ -99,6 +102,19 @@ async def main() -> None:
         records=records,
     )
     print_summary(summary)
+
+    try:
+        run_id = await save_run(
+            session_factory,
+            summary,
+            order_qty=Decimal(args.qty),
+            min_profit=Decimal(args.min_profit),
+            slippage=slippage,
+        )
+        print(f"결과 DB 저장됨: run_id={run_id}")
+    except Exception:
+        # 결과는 이미 터미널/CSV로 출력됐으므로 저장 실패로 프로세스를 죽이지 않는다
+        logging.exception("백테스트 결과 DB 저장 실패")
 
     if args.output:
         to_csv(summary, args.output)
