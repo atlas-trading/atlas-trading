@@ -26,9 +26,9 @@ _CCXT_TO_VISION: dict[str, str] = {
     "XRP/ETH": "XRPETH",
 }
 
-_BASE_URL = (
-    "https://data.binance.vision/data/spot/daily/bookTicker/{sym}/{sym}-bookTicker-{date}.zip"
-)
+# Binance Vision은 spot bookTicker를 제공하지 않으므로 1s klines의 close를
+# bid/ask 근사치로 사용한다. 스프레드 비용은 BacktestExchange의 slippage로 모델링.
+_BASE_URL = "https://data.binance.vision/data/spot/daily/klines/{sym}/1s/{sym}-1s-{date}.zip"
 _MAX_CONCURRENT = 20
 
 
@@ -116,28 +116,31 @@ def _date_range(start: date, end: date) -> list[date]:
 
 
 def _parse_zip(ccxt_sym: str, data: bytes) -> list[RawTick]:
-    """Parse a Binance Vision bookTicker zip, keeping the last row per second."""
+    """Parse a Binance Vision 1s-kline zip; close is used as bid/ask/last."""
     per_second: dict[int, tuple[str, str]] = {}
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         with zf.open(zf.namelist()[0]) as f:
             for row in csv.reader(io.TextIOWrapper(f)):
-                if not row or row[0] == "update_id":
+                if not row or row[0] == "open_time":
                     continue
                 try:
-                    event_ms = int(row[6])
+                    open_time = int(row[0])
+                    close, volume = row[4], row[5]
                 except (ValueError, IndexError):
                     continue
-                per_second[event_ms // 1000] = (row[1], row[3])
+                # 2025-01-01부터 open_time이 ms에서 µs로 변경됨
+                sec = open_time // 1_000_000 if open_time >= 10**14 else open_time // 1000
+                per_second[sec] = (close, volume)
 
     return [
         RawTick(
             exchange="binance",
             symbol=ccxt_sym,
             timestamp=datetime.fromtimestamp(sec, tz=timezone.utc),
-            bid=Decimal(bid),
-            ask=Decimal(ask),
-            last=Decimal(0),
-            volume=Decimal(0),
+            bid=Decimal(close),
+            ask=Decimal(close),
+            last=Decimal(close),
+            volume=Decimal(volume),
         )
-        for sec, (bid, ask) in sorted(per_second.items())
+        for sec, (close, volume) in sorted(per_second.items())
     ]
