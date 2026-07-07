@@ -41,6 +41,7 @@ export function BacktestPanel() {
     fetchBacktestRuns()
       .then((rs) => {
         setRuns(rs);
+        setError(null);
         if (rs.length > 0) setSelected(rs[0]);
       })
       .catch((err) => setError(String(err)))
@@ -49,15 +50,30 @@ export function BacktestPanel() {
 
   useEffect(() => {
     if (!selected) return;
+    let ignore = false;
+    setTrades([]);
     fetchBacktestTrades(selected.id)
-      .then(setTrades)
-      .catch((err) => setError(String(err)));
+      .then((next) => {
+        if (!ignore) {
+          setTrades(next);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!ignore) setError(String(err));
+      });
+    return () => {
+      ignore = true;
+    };
   }, [selected]);
 
   if (loading) return <p className="text-gray-400 text-sm">불러오는 중...</p>;
-  if (error) return <p className="text-red-500 text-sm">오류: {error}</p>;
   if (runs.length === 0)
-    return <p className="text-gray-400 text-sm">백테스트 실행 이력 없음</p>;
+    return error ? (
+      <p className="text-red-500 text-sm">오류: {error}</p>
+    ) : (
+      <p className="text-gray-400 text-sm">백테스트 실행 이력 없음</p>
+    );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -109,7 +125,9 @@ export function BacktestPanel() {
               />
             </div>
 
-            {trades.length === 0 ? (
+            {error ? (
+              <p className="text-red-500 text-sm">오류: {error}</p>
+            ) : trades.length === 0 ? (
               <p className="text-gray-400 text-sm">거래 없음</p>
             ) : (
               <div className="overflow-x-auto">
