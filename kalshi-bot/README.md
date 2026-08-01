@@ -42,6 +42,26 @@ KALSHI_API_KEY_ID=... KALSHI_PRIVATE_KEY_PATH=... \
 | `KALSHI_MAX_EXPOSURE` | `100` | 누적 체결 비용 한도 ($) |
 | `KALSHI_FEE_COEF` | `0.07` | taker 수수료 계수 |
 
+## 백테스트 (candlestick 재생)
+
+정산된 상호배타 이벤트의 분/시간봉 bid·ask를 정렬해 스캐너를 과거 시점마다 재생한다.
+
+```bash
+uv run python -m kalshi_bot.backtest --days 7 --interval 60 --mode close --max-events 200
+uv run python -m kalshi_bot.backtest --days 2 --interval 1 --mode conservative --out hits.jsonl
+```
+
+한계: 과거 호가 잔량(depth)이 없어 수량은 `KALSHI_MAX_COUNT` 가정 → 결과는
+기회 빈도·마진의 **상한 추정**. `close`는 bar 종가 호가, `conservative`는 bar 내
+최악 호가(레그 간 동시성 오차 하한) 기준.
+
+## 포워드 수집 (측정 모드)
+
+```bash
+KALSHI_DB_PATH=data/kalshi_prod.sqlite3 \
+  nohup uv run python -m kalshi_bot.runner --env prod > data/collector.log 2>&1 &
+```
+
 ## 테스트
 
 ```bash
