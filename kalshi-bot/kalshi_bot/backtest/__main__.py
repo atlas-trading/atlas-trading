@@ -23,6 +23,7 @@ async def run_backtest(
     mode: str,
     max_events: int,
     out_path: str | None,
+    concurrency: int,
 ) -> None:
     config = load_config(env="prod")
     end_ts = int(time.time())
@@ -31,7 +32,9 @@ async def run_backtest(
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=60)
     ) as session:
-        client = HistoryClient(base_url=config.public_base_url, session=session)
+        client = HistoryClient(
+            base_url=config.public_base_url, session=session, concurrency=concurrency
+        )
         event_tickers = await client.settled_event_tickers(
             start_ts=start_ts, end_ts=end_ts, max_events=max_events
         )
@@ -121,6 +124,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["close", "conservative"], default="close")
     parser.add_argument("--max-events", type=int, default=200)
     parser.add_argument("--out", default=None, help="hit 상세를 저장할 JSONL 경로")
+    parser.add_argument("--concurrency", type=int, default=3)
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -132,6 +136,7 @@ def main() -> None:
             mode=args.mode,
             max_events=args.max_events,
             out_path=args.out,
+            concurrency=args.concurrency,
         )
     )
 

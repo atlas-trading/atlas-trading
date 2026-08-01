@@ -43,7 +43,8 @@ class HistoryClient:
             payload = await self._get("/markets", params)
             for market in payload.get("markets", []):
                 event_ticker = market.get("event_ticker")
-                if event_ticker:
+                # MVE(팔레이 조합상품)는 단일마켓 이벤트라 바스켓 차익 대상이 아님
+                if event_ticker and not market.get("mve_collection_ticker"):
                     tickers.setdefault(event_ticker, None)
             cursor = payload.get("cursor")
             if not cursor:
